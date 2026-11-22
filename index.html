@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/romix.svg" />
+    <title>Romix</title>
+    <script>
+      // Apply the saved theme before first paint so there's no flash. Dark is the default.
+      (function () {
+        var pref = "dark";
+        try { pref = localStorage.getItem("romix.theme") || "dark"; } catch (e) {}
+        var light = pref === "light" || (pref === "auto" && matchMedia("(prefers-color-scheme: light)").matches);
+        document.documentElement.dataset.theme = light ? "light" : "dark";
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
