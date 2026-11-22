@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { join, dirname, delimiter } from "node:path";
 import { readSettings } from "./settings";
+import { paths } from "./paths";
 
 /** yt-dlp's YouTube challenge solver needs a modern Node. */
 export const MIN_NODE_MAJOR = 22;
@@ -101,11 +102,18 @@ export function ytdlpEnv(runtime: Runtime | null): NodeJS.ProcessEnv {
     PATH: safePath(runtime ? [dirname(runtime.path)] : []),
     PYTHONUTF8: "1",
     PYTHONIOENCODING: "utf-8",
+    TEMP: paths.temp,
+    TMP: paths.temp,
+    // yt-dlp falls back to %USERPROFILE%\.cache otherwise.
+    XDG_CACHE_HOME: paths.ytdlpCache,
   };
 }
 
+/** Flags every yt-dlp call gets so it never reads user config or writes outside the project. */
+export const YTDLP_BASE_ARGS = ["--ignore-config", "--cache-dir", paths.ytdlpCache];
+
 export async function ytdlpVersion(): Promise<string | undefined> {
   if (!existsSync(ytdlpPath())) return undefined;
-  const r = await run(ytdlpPath(), ["--version"], { timeoutMs: 15_000, env: ytdlpEnv(null) });
+  const r = await run(ytdlpPath(), [...YTDLP_BASE_ARGS, "--version"], { timeoutMs: 15_000, env: ytdlpEnv(null) });
   return r.code === 0 ? r.stdout.trim() : undefined;
 }

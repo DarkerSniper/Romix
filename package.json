@@ -10,6 +10,7 @@
     "app": "vite --mode electron",
     "build": "tsc --noEmit && vite build",
     "build:app": "tsc --noEmit && vite build --mode electron",
+    "setup": "node scripts/setup.mjs",
     "fetch-bins": "node scripts/fetch-bins.mjs",
     "test": "vitest run",
     "test:live": "node scripts/live-check.mjs",

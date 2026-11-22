@@ -47,13 +47,24 @@ Requirements:
 - Windows (the burner backends in milestone 4 are Windows-only).
 
 ```bash
-npm install
-npm run fetch-bins   # downloads yt-dlp.exe into ./bin and verifies its checksum
+npm run setup        # installs packages and the checksum-verified yt-dlp, caches kept in ./.cache
 npm run app          # desktop app (Electron) with real YouTube import
 npm run dev          # browser-only UI preview with sample songs, http://localhost:1420
 npm test             # unit tests
 npm run test:live    # end-to-end check against live YouTube links
 ```
+
+### Everything stays in the project folder
+
+Romix never writes to AppData, Temp or your user folder:
+
+| What | Where |
+| --- | --- |
+| Settings, song cache, Chromium profile, logs, temp files, yt-dlp cache | `.data/` (an installed copy uses `data/` next to `Romix.exe`) |
+| npm and Electron download caches | `.cache/` (via `npm run setup` and `.npmrc`) |
+| yt-dlp | `bin/` |
+
+All three are git-ignored. Deleting them resets Romix completely.
 
 ### How link import works
 

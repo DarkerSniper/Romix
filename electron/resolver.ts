@@ -4,7 +4,7 @@ import type { ResolveErrorCode, ResolveResult, ResolvedTrack, YtdlpInfo } from "
 import { normalizeMeta } from "../src/lib/metadata";
 import { classifyYtdlpError } from "../src/lib/ytdlpErrors";
 import { getCached, putCached } from "./cache";
-import { findRuntime, MIN_NODE_MAJOR, run, ytdlpEnv, ytdlpPath } from "./tools";
+import { findRuntime, MIN_NODE_MAJOR, run, YTDLP_BASE_ARGS, ytdlpEnv, ytdlpPath } from "./tools";
 
 const CD_MAX_SEC = 80 * 60;
 const CONCURRENCY = 3;
@@ -58,7 +58,7 @@ async function fetchOnce(videoId: string): Promise<ResolveResult> {
   if (!runtime) return fail("no-runtime", `Romix needs Node ${MIN_NODE_MAJOR} or newer to read YouTube. Set it in Settings.`);
 
   const args = [
-    "--ignore-config",
+    ...YTDLP_BASE_ARGS,
     "--js-runtimes",
     `node:${runtime.path}`,
     "--dump-json",

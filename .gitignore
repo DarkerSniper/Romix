@@ -1,6 +1,9 @@
 node_modules/
 dist/
 dist-electron/
+
+# App data in development (settings, song cache, Chromium profile, temp, yt-dlp cache)
+.data/
 *.log
 .DS_Store
 Thumbs.db

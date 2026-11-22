@@ -1,10 +1,10 @@
-import { app } from "electron";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResolvedTrack } from "../src/shared/api";
+import { paths } from "./paths";
 
 const VERSION = 1;
-const dir = () => join(app.getPath("userData"), "cache", "tracks");
+const dir = () => paths.trackCache;
 const safeId = (id: string) => id.replace(/[^\w-]/g, "_");
 
 interface Entry {

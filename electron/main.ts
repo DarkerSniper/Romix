@@ -1,9 +1,10 @@
+import "./paths"; // must be first: keeps all app data inside the project folder
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { ToolStatus, UpdateResult } from "../src/shared/api";
 import { resolve } from "./resolver";
-import { findRuntime, majorOf, MIN_NODE_MAJOR, run, ytdlpEnv, ytdlpPath, ytdlpVersion } from "./tools";
+import { findRuntime, majorOf, MIN_NODE_MAJOR, run, YTDLP_BASE_ARGS, ytdlpEnv, ytdlpPath, ytdlpVersion } from "./tools";
 import { writeSettings } from "./settings";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,7 +69,7 @@ ipcMain.handle("romix:tools", () => toolStatus());
 ipcMain.handle("romix:update-ytdlp", async (): Promise<UpdateResult> => {
   const before = await ytdlpVersion();
   if (!before) return { ok: false, message: "yt-dlp is missing. Run npm run fetch-bins." };
-  const r = await run(ytdlpPath(), ["-U"], { timeoutMs: 180_000, env: ytdlpEnv(null) });
+  const r = await run(ytdlpPath(), [...YTDLP_BASE_ARGS, "-U"], { timeoutMs: 180_000, env: ytdlpEnv(null) });
   const after = await ytdlpVersion();
   if (r.code !== 0) return { ok: false, message: "Couldn't update yt-dlp. Check your connection and try again.", version: after };
   return { ok: true, message: after && after !== before ? `Updated to ${after}` : "yt-dlp is up to date", version: after };
