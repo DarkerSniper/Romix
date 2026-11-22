@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import type { ThemePref } from "../lib/theme";
+import type { ToolStatus } from "../shared/api";
+import { bridge, isDesktop } from "../lib/bridge";
 
 const OPTIONS: Array<{ id: ThemePref; label: string }> = [
   { id: "dark", label: "Dark" },
@@ -38,18 +41,44 @@ function Thumb({ kind }: { kind: ThemePref }) {
   );
 }
 
-export function SettingsPage({ pref, onChange }: { pref: ThemePref; onChange: (p: ThemePref) => void }) {
+interface SettingsPageProps {
+  pref: ThemePref;
+  onChange: (p: ThemePref) => void;
+  onToast: (msg: string) => void;
+}
+
+export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
+  const [tools, setTools] = useState<ToolStatus | null>(null);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void bridge.tools().then((t) => live && setTools(t));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const update = async () => {
+    setUpdating(true);
+    const r = await bridge.updateYtdlp();
+    setUpdating(false);
+    onToast(r.message);
+    setTools(await bridge.tools());
+  };
+
   return (
     <div className="settings">
       <h1 className="settings-title">Settings</h1>
 
+      <h2 className="settings-heading">Appearance</h2>
       <section className="settings-group">
         <div className="settings-row">
           <div>
-            <div className="settings-label">Appearance</div>
+            <div className="settings-label">Theme</div>
             <div className="settings-hint">Auto follows your Windows setting.</div>
           </div>
-          <div className="theme-options" role="radiogroup" aria-label="Appearance">
+          <div className="theme-options" role="radiogroup" aria-label="Theme">
             {OPTIONS.map((o) => (
               <button
                 key={o.id}
@@ -64,6 +93,45 @@ export function SettingsPage({ pref, onChange }: { pref: ThemePref; onChange: (p
             ))}
           </div>
         </div>
+      </section>
+
+      <h2 className="settings-heading">YouTube engine</h2>
+      <section className="settings-group">
+        {!isDesktop ? (
+          <div className="settings-row">
+            <div className="settings-hint">Available in the desktop app.</div>
+          </div>
+        ) : (
+          <>
+            <div className="settings-row">
+              <div>
+                <div className="settings-label">yt-dlp</div>
+                <div className="settings-hint">
+                  {!tools ? "Checking…" : tools.ytdlp.found ? `Version ${tools.ytdlp.version}` : "Missing. Run npm run fetch-bins."}
+                  {" · "}YouTube changes often, so update if songs stop loading.
+                </div>
+              </div>
+              <button className="btn" onClick={update} disabled={updating || !tools?.ytdlp.found}>
+                {updating ? "Updating…" : "Update"}
+              </button>
+            </div>
+            <div className="settings-row settings-row-sep">
+              <div className="settings-text">
+                <div className="settings-label">Node.js</div>
+                <div className={`settings-hint ${tools && !tools.runtime.found ? "is-warning" : ""}`}>
+                  {!tools
+                    ? "Checking…"
+                    : tools.runtime.found
+                      ? `${tools.runtime.version} · ${tools.runtime.path}`
+                      : `Not found. Romix needs Node ${tools.runtime.minMajor} or newer to read YouTube.`}
+                </div>
+              </div>
+              <button className="btn" onClick={async () => setTools(await bridge.chooseRuntime())}>
+                Choose…
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       <p className="settings-later">Burner, burn speed, verify after burning, CD-Text and the download cache arrive in milestone 4.</p>

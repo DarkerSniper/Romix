@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import "./bridge";
 
 export type ThemePref = "dark" | "light" | "auto";
 export type ResolvedTheme = "dark" | "light";
@@ -26,6 +27,8 @@ function resolve(pref: ThemePref): ResolvedTheme {
 
 function apply(theme: ResolvedTheme) {
   document.documentElement.dataset.theme = theme;
+  // Desktop: keep the native window controls in step with the theme.
+  window.romix?.setTitleBarTheme(theme);
 }
 
 export function useTheme() {

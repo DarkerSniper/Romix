@@ -3,8 +3,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Upload } from "lucide-react";
 import type { DiscOptions, Page, Track } from "./types";
 import { CD_MAX_SEC, capacityLevel, discLength, formatTime, parseYouTubeLink } from "./lib/cd";
-import { initialTracks, mockMetadata } from "./lib/mock";
+import { initialTracks } from "./lib/mock";
 import { makeCover } from "./lib/covers";
+import { processCover } from "./lib/coverArt";
+import { bridge, isDesktop } from "./lib/bridge";
 import { Disc } from "./components/Disc";
 import { TrackList } from "./components/TrackList";
 import { LinkInput } from "./components/LinkInput";
@@ -29,7 +31,8 @@ export default function App() {
   const theme = useTheme();
   const [page, setPage] = useState<Page>("disc");
   const [title, setTitle] = useState("Untitled mix");
-  const [tracks, setTracks] = useState<Track[]>(initialTracks);
+  // The browser preview starts with sample songs; the real app starts with an empty disc.
+  const [tracks, setTracks] = useState<Track[]>(() => (isDesktop ? [] : initialTracks()));
   const [options, setOptions] = useState<DiscOptions>({ gapMode: "gap2", crossfadeSec: 3, normalize: false });
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [burning, setBurning] = useState(false);
@@ -45,6 +48,32 @@ export default function App() {
     const id = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(id);
   }, [toast]);
+
+  /** Fetches real metadata (desktop) or mock data (browser) and fills in the row. */
+  const resolveTrack = useCallback(async (rowId: string, videoId: string) => {
+    const patch = (p: Partial<Track>) => setTracks((prev) => prev.map((t) => (t.id === rowId ? { ...t, ...p } : t)));
+    let res;
+    try {
+      res = await bridge.resolve(videoId);
+    } catch {
+      return patch({ status: "error", error: "Something went wrong. Try again." });
+    }
+    if (!res.ok) return patch({ status: "error", error: res.message });
+
+    const { track } = res;
+    let art = makeCover(track.title + track.artist);
+    if (track.coverDataUrl) art = await processCover(track.coverDataUrl).catch(() => art);
+    patch({
+      status: "ready",
+      title: track.title,
+      artist: track.artist,
+      durationSec: track.durationSec,
+      url: track.webpageUrl,
+      cover: art.cover,
+      color: art.color,
+      error: undefined,
+    });
+  }, []);
 
   const addLinks = useCallback(
     (lines: string[]): string[] => {
@@ -79,18 +108,19 @@ export default function App() {
 
       if (added.length) {
         setTracks((prev) => [...prev, ...added]);
-        // Mock resolver: milestone 2 swaps this for yt-dlp metadata.
-        added.forEach((t, i) => {
-          setTimeout(() => {
-            const meta = mockMetadata(t.videoId!);
-            setTracks((prev) => prev.map((p) => (p.id === t.id ? { ...p, ...meta, status: "ready" } : p)));
-          }, 500 + i * 280 + Math.random() * 500);
-        });
+        added.forEach((t) => void resolveTrack(t.id, t.videoId!));
       }
       return errors;
     },
-    [tracks],
+    [tracks, resolveTrack],
   );
+
+  const retryTrack = (id: string) => {
+    const t = tracks.find((x) => x.id === id);
+    if (!t?.videoId) return;
+    setTracks((prev) => prev.map((p) => (p.id === id ? { ...p, status: "resolving", error: undefined } : p)));
+    void resolveTrack(id, t.videoId);
+  };
 
   const addFiles = useCallback(async (files: FileList) => {
     const audio = [...files].filter((f) => f.type.startsWith("audio/") || /\.(mp3|flac|wav|m4a|ogg|opus|aac)$/i.test(f.name));
@@ -124,6 +154,7 @@ export default function App() {
     if (ready.length === 0) return setToast("Add some songs first");
     if (level === "over") return setToast(`The disc is ${formatTime(totalSec - CD_MAX_SEC)} too long. Remove a song or switch to crossfade.`);
     if (tracks.some((t) => t.status === "resolving")) return setToast("Wait for all songs to finish loading");
+    if (tracks.some((t) => t.status === "error")) return setToast("Retry or remove the songs that couldn't load");
     setBurning(true);
   };
 
@@ -143,11 +174,12 @@ export default function App() {
         if (e.dataTransfer.files.length) void addFiles(e.dataTransfer.files);
       }}
     >
+      {isDesktop && <div className="drag-strip" aria-hidden="true" />}
       <Sidebar page={page} onNavigate={setPage} theme={theme.resolved} onToggleTheme={theme.toggle} />
 
       <main className="main">
         {page === "settings" ? (
-          <SettingsPage pref={theme.pref} onChange={theme.setPref} />
+          <SettingsPage pref={theme.pref} onChange={theme.setPref} onToast={setToast} />
         ) : page !== "disc" ? (
           <Placeholder page={page} />
         ) : (
@@ -179,6 +211,7 @@ export default function App() {
                   tracks={tracks}
                   onReorder={setTracks}
                   onRemove={removeTrack}
+                  onRetry={retryTrack}
                   hoveredId={hoveredId}
                   onHover={setHoveredId}
                 />

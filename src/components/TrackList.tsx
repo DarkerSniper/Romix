@@ -1,5 +1,5 @@
 import { Reorder, useDragControls, AnimatePresence } from "framer-motion";
-import { GripVertical, X, Clock } from "lucide-react";
+import { AlertCircle, GripVertical, X, Clock } from "lucide-react";
 import type { Track } from "../types";
 import { formatTime } from "../lib/cd";
 
@@ -7,11 +7,12 @@ interface TrackListProps {
   tracks: Track[];
   onReorder: (next: Track[]) => void;
   onRemove: (id: string) => void;
+  onRetry: (id: string) => void;
   hoveredId: string | null;
   onHover: (id: string | null) => void;
 }
 
-export function TrackList({ tracks, onReorder, onRemove, hoveredId, onHover }: TrackListProps) {
+export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onHover }: TrackListProps) {
   if (tracks.length === 0) {
     return (
       <div className="list-empty">
@@ -33,7 +34,7 @@ export function TrackList({ tracks, onReorder, onRemove, hoveredId, onHover }: T
       <Reorder.Group axis="y" values={tracks} onReorder={onReorder} className="track-list" as="ol">
         <AnimatePresence initial={false}>
           {tracks.map((t, i) => (
-            <TrackRow key={t.id} track={t} index={i} hovered={hoveredId === t.id} onHover={onHover} onRemove={onRemove} />
+            <TrackRow key={t.id} track={t} index={i} hovered={hoveredId === t.id} onHover={onHover} onRemove={onRemove} onRetry={onRetry} />
           ))}
         </AnimatePresence>
       </Reorder.Group>
@@ -47,9 +48,10 @@ interface RowProps {
   hovered: boolean;
   onHover: (id: string | null) => void;
   onRemove: (id: string) => void;
+  onRetry: (id: string) => void;
 }
 
-function TrackRow({ track: t, index, hovered, onHover, onRemove }: RowProps) {
+function TrackRow({ track: t, index, hovered, onHover, onRemove, onRetry }: RowProps) {
   const controls = useDragControls();
   const resolving = t.status === "resolving";
   const failed = t.status === "error";
@@ -76,7 +78,15 @@ function TrackRow({ track: t, index, hovered, onHover, onRemove }: RowProps) {
           </button>
         )}
       </span>
-      {resolving ? <div className="track-cover skeleton" /> : <img className="track-cover" src={t.cover} alt="" draggable={false} />}
+      {resolving ? (
+        <div className="track-cover skeleton" />
+      ) : failed ? (
+        <div className="track-cover track-cover-error" aria-hidden="true">
+          <AlertCircle size={16} />
+        </div>
+      ) : (
+        <img className="track-cover" src={t.cover} alt="" draggable={false} />
+      )}
       <div className="track-meta">
         {resolving ? (
           <>
@@ -85,8 +95,13 @@ function TrackRow({ track: t, index, hovered, onHover, onRemove }: RowProps) {
           </>
         ) : failed ? (
           <>
-            <div className="track-title">{t.url}</div>
-            <div className="track-artist">{t.error}</div>
+            <div className="track-title">{t.error}</div>
+            <div className="track-artist">
+              <span className="track-url">{t.url}</span>
+              <button className="link-btn" onClick={() => onRetry(t.id)}>
+                Retry
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -98,7 +113,7 @@ function TrackRow({ track: t, index, hovered, onHover, onRemove }: RowProps) {
           </>
         )}
       </div>
-      <span className="track-time">{resolving ? "" : formatTime(t.durationSec)}</span>
+      <span className="track-time">{resolving || failed ? "" : formatTime(t.durationSec)}</span>
       <button className="icon-btn track-remove" aria-label={`Remove ${t.title || "song"}`} onClick={() => onRemove(t.id)}>
         <X size={13} />
       </button>

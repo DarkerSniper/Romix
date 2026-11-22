@@ -34,20 +34,30 @@ That gives the best possible CD from the source. It can't add back detail the so
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | 1 | UI shell: disc ring, track list, options, demo burn flow | ✅ Done |
-| 2 | Real link import with yt-dlp (metadata, covers, errors, duplicates) | Planned |
-| 3 | Download and convert to CD audio (ffmpeg + soxr), cache, preview player, gaps and crossfade, loudness | Planned |
-| 4 | Tauri desktop shell, drive detection, burning (IMAPI2 / cdrdao with CD-Text), burn speed, verify, saved projects and copies | Planned |
+| 2 | Electron desktop shell, real link import with yt-dlp (metadata, covers, errors, cache) | ✅ Done |
+| 3 | Download and convert to CD audio (ffmpeg + soxr), preview player, gaps and crossfade, loudness | Planned |
+| 4 | Drive detection, burning (IMAPI2 / cdrdao with CD-Text), burn speed, verify, saved projects and copies | Planned |
 | 5 | Printable inserts (cover, tracklist, disc label), shelf of past discs, clip-to-fit trimming, mix flow sorting, installer | Planned |
 
 ## Development
 
-Requires Node 20+. The desktop shell (milestone 4) also needs Rust.
+Requirements:
+
+- **Node.js 22 or newer.** It runs the dev tools, and yt-dlp uses it to solve YouTube's JavaScript challenges. If it isn't first on your PATH, point Romix at it in **Settings → YouTube engine**, or set `ROMIX_NODE` to the full path of `node.exe`.
+- Windows (the burner backends in milestone 4 are Windows-only).
 
 ```bash
 npm install
-npm run dev        # http://localhost:1420
-npm run typecheck
+npm run fetch-bins   # downloads yt-dlp.exe into ./bin and verifies its checksum
+npm run app          # desktop app (Electron) with real YouTube import
+npm run dev          # browser-only UI preview with sample songs, http://localhost:1420
+npm test             # unit tests
+npm run test:live    # end-to-end check against live YouTube links
 ```
+
+### How link import works
+
+The Electron main process runs `yt-dlp --dump-json --skip-download` for each link (3 at a time, with one retry), cleans up the title and artist, fetches the best cover, and caches the result. The UI talks to it only through a five-function bridge (`window.romix`); the renderer is sandboxed with no Node access.
 
 ## Note
 
