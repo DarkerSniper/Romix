@@ -1,7 +1,7 @@
 // One-step setup that keeps every download cache inside the project:
 //   npm cache      → .cache/npm
 //   Electron zip   → .cache/electron   (Electron's installer only reads an env var for this)
-// then fetches the checksum-verified yt-dlp into ./bin.
+// The helper tools (yt-dlp, FFmpeg, Node.js) are installed by the app itself on first run.
 // Run: npm run setup
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
@@ -22,5 +22,5 @@ function step(label, command) {
 }
 
 step("Installing packages", "npm install --no-fund --no-audit");
-step("Fetching yt-dlp", `"${process.execPath}" scripts/fetch-bins.mjs`);
 console.log("\nDone. Start the app with: npm run app");
+console.log("On first launch Romix downloads the tools it needs (yt-dlp, FFmpeg, Node.js) into ./bin by itself.");

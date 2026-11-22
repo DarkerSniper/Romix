@@ -53,9 +53,9 @@ function fail(code: ResolveErrorCode, message: string): ResolveResult {
 }
 
 async function fetchOnce(videoId: string): Promise<ResolveResult> {
-  if (!existsSync(ytdlpPath())) return fail("no-ytdlp", "yt-dlp is missing. Run npm run fetch-bins.");
+  if (!existsSync(ytdlpPath())) return fail("no-ytdlp", "Romix is still setting up (yt-dlp is missing)");
   const runtime = await findRuntime();
-  if (!runtime) return fail("no-runtime", `Romix needs Node ${MIN_NODE_MAJOR} or newer to read YouTube. Set it in Settings.`);
+  if (!runtime) return fail("no-runtime", `Romix is still setting up (Node ${MIN_NODE_MAJOR}+ is missing)`);
 
   const args = [
     ...YTDLP_BASE_ARGS,

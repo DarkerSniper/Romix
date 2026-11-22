@@ -16,6 +16,10 @@ export interface Track {
   videoId?: string;
   url?: string;
   error?: string;
+  /** Key of the prepared audio (download + conversion) for this song. */
+  sourceKey?: string;
+  /** Local files: absolute path on disk (desktop only). */
+  filePath?: string;
 }
 
 export type GapMode = "none" | "gap2" | "crossfade";

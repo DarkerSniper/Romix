@@ -37,6 +37,12 @@ export default defineConfig(({ mode }) => ({
       ]),
   ],
   clearScreen: false,
-  server: { port: 1420, strictPort: true },
+  server: {
+    port: 1420,
+    strictPort: true,
+    // Romix's own data, downloaded tools and caches change at runtime (and hold locked files while
+    // unpacking); watching them crashes the dev server.
+    watch: { ignored: ["**/.data/**", "**/bin/**", "**/.cache/**", "**/dist/**", "**/dist-electron/**"] },
+  },
   test: { include: ["src/**/*.test.ts"] },
 }));

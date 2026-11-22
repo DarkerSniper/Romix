@@ -32,9 +32,19 @@ export type ResolveResult =
   | { ok: true; track: ResolvedTrack; cached: boolean }
   | { ok: false; code: ResolveErrorCode; message: string };
 
-export interface ToolStatus {
-  ytdlp: { found: boolean; version?: string; path: string };
-  runtime: { found: boolean; version?: string; path?: string; minMajor: number };
+/* ---------- Built-in setup: helper programs Romix downloads into its own folder ---------- */
+
+export type DepId = "ytdlp" | "ffmpeg" | "node";
+
+export interface DepStatus {
+  id: DepId;
+  name: string;
+  purpose: string;
+  approxMB: number;
+  state: "missing" | "downloading" | "installing" | "ready" | "error";
+  progress: number;
+  version?: string;
+  error?: string;
 }
 
 export interface UpdateResult {
@@ -43,12 +53,66 @@ export interface UpdateResult {
   version?: string;
 }
 
+/* ---------- Milestone 3: preparing audio and building the disc ---------- */
+
+/** What to prepare: a YouTube video or a local audio file. */
+export type PrepSource = { kind: "youtube"; videoId: string } | { kind: "file"; path: string };
+
+export type PrepState = "queued" | "downloading" | "converting" | "ready" | "error";
+
+export interface PrepUpdate {
+  /** Stable id of the source ("yt-<id>" or "file-<hash>"). */
+  key: string;
+  state: PrepState;
+  /** 0–1 across download + convert. */
+  progress: number;
+  error?: string;
+  /** Set when ready: duration of the converted audio. */
+  durationSec?: number;
+}
+
+export interface DiscRequest {
+  keys: string[];
+  options: { gapMode: "none" | "gap2" | "crossfade"; crossfadeSec: number; normalize: boolean };
+}
+
+export interface RenderedTrack {
+  key: string;
+  /** Streamable URL of the exact audio that will be burned (romix-audio://disc/…). */
+  url: string;
+  samples: number;
+  pregap: number;
+  startSample: number;
+  gainDb: number;
+}
+
+export type RenderResult =
+  | { ok: true; tracks: RenderedTrack[]; totalSamples: number; targetLufs: number | null }
+  | { ok: false; message: string };
+
+export interface CacheInfo {
+  bytes: number;
+  files: number;
+  path: string;
+}
+
 export interface RomixBridge {
   resolve(videoId: string): Promise<ResolveResult>;
-  tools(): Promise<ToolStatus>;
+  /** Starts (or joins) preparing a source. Progress arrives through onPrepUpdate. Returns the source key. */
+  prepare(source: PrepSource): Promise<string>;
+  cancelPrep(key: string): void;
+  onPrepUpdate(cb: (u: PrepUpdate) => void): () => void;
+  renderDisc(req: DiscRequest): Promise<RenderResult>;
+  /** Absolute path of a dropped file (desktop only). */
+  pathForFile(file: File): string;
+  cacheInfo(): Promise<CacheInfo>;
+  clearCache(): Promise<CacheInfo>;
+  /** Current state of the helper programs (checks the app folder). */
+  deps(): Promise<DepStatus[]>;
+  /** Downloads and installs whatever is missing into the app folder. */
+  installDeps(): Promise<DepStatus[]>;
+  onDepsUpdate(cb: (list: DepStatus[]) => void): () => void;
   updateYtdlp(): Promise<UpdateResult>;
-  /** Opens a file picker for node.exe. Returns the new status (unchanged if cancelled or invalid). */
-  chooseRuntime(): Promise<ToolStatus>;
   setTitleBarTheme(theme: "dark" | "light"): void;
 }
 

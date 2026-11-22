@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ThemePref } from "../lib/theme";
-import type { ToolStatus } from "../shared/api";
+import type { CacheInfo, DepStatus } from "../shared/api";
 import { bridge, isDesktop } from "../lib/bridge";
 
 const OPTIONS: Array<{ id: ThemePref; label: string }> = [
@@ -47,16 +47,20 @@ interface SettingsPageProps {
   onToast: (msg: string) => void;
 }
 
+const formatBytes = (b: number) =>
+  b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : b > 0 ? `${Math.round(b / 1e3)} KB` : "Empty";
+
 export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
-  const [tools, setTools] = useState<ToolStatus | null>(null);
+  const [deps, setDeps] = useState<DepStatus[]>([]);
+  const [cache, setCache] = useState<CacheInfo | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
-    let live = true;
-    void bridge.tools().then((t) => live && setTools(t));
-    return () => {
-      live = false;
-    };
+    const off = bridge.onDepsUpdate(setDeps);
+    void bridge.deps().then(setDeps);
+    void bridge.cacheInfo().then(setCache);
+    return off;
   }, []);
 
   const update = async () => {
@@ -64,7 +68,19 @@ export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
     const r = await bridge.updateYtdlp();
     setUpdating(false);
     onToast(r.message);
-    setTools(await bridge.tools());
+    setDeps(await bridge.deps());
+  };
+
+  const clear = async () => {
+    setClearing(true);
+    try {
+      setCache(await bridge.clearCache());
+      onToast("Audio cache cleared. Songs will be prepared again when needed.");
+    } catch {
+      onToast("Wait for songs to finish preparing, then try again");
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
@@ -95,43 +111,46 @@ export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
         </div>
       </section>
 
-      <h2 className="settings-heading">YouTube engine</h2>
+      <h2 className="settings-heading">Helper tools</h2>
       <section className="settings-group">
         {!isDesktop ? (
           <div className="settings-row">
             <div className="settings-hint">Available in the desktop app.</div>
           </div>
         ) : (
-          <>
-            <div className="settings-row">
-              <div>
-                <div className="settings-label">yt-dlp</div>
-                <div className="settings-hint">
-                  {!tools ? "Checking…" : tools.ytdlp.found ? `Version ${tools.ytdlp.version}` : "Missing. Run npm run fetch-bins."}
-                  {" · "}YouTube changes often, so update if songs stop loading.
-                </div>
-              </div>
-              <button className="btn" onClick={update} disabled={updating || !tools?.ytdlp.found}>
-                {updating ? "Updating…" : "Update"}
-              </button>
-            </div>
-            <div className="settings-row settings-row-sep">
+          deps.map((d, i) => (
+            <div key={d.id} className={`settings-row ${i ? "settings-row-sep" : ""}`}>
               <div className="settings-text">
-                <div className="settings-label">Node.js</div>
-                <div className={`settings-hint ${tools && !tools.runtime.found ? "is-warning" : ""}`}>
-                  {!tools
-                    ? "Checking…"
-                    : tools.runtime.found
-                      ? `${tools.runtime.version} · ${tools.runtime.path}`
-                      : `Not found. Romix needs Node ${tools.runtime.minMajor} or newer to read YouTube.`}
+                <div className="settings-label">{d.name}</div>
+                <div className={`settings-hint ${d.state === "error" ? "is-warning" : ""}`}>
+                  {d.state === "ready" ? `${d.version} · ${d.purpose}` : d.state === "error" ? d.error : d.state === "missing" ? "Missing" : `Installing… ${Math.round(d.progress * 100)}%`}
                 </div>
               </div>
-              <button className="btn" onClick={async () => setTools(await bridge.chooseRuntime())}>
-                Choose…
-              </button>
+              {d.id === "ytdlp" && (
+                <button className="btn" onClick={update} disabled={updating || d.state !== "ready"} title="YouTube changes often. Update if songs stop loading.">
+                  {updating ? "Updating…" : "Update"}
+                </button>
+              )}
             </div>
-          </>
+          ))
         )}
+      </section>
+
+      <h2 className="settings-heading">Storage</h2>
+      <section className="settings-group">
+        <div className="settings-row">
+          <div className="settings-text">
+            <div className="settings-label">Audio cache</div>
+            <div className="settings-hint">
+              {isDesktop ? `${cache ? formatBytes(cache.bytes) : "Checking…"} · Downloads and CD audio, kept in Romix's folder` : "Available in the desktop app."}
+            </div>
+          </div>
+          {isDesktop && (
+            <button className="btn" onClick={clear} disabled={clearing || !cache?.bytes}>
+              {clearing ? "Clearing…" : "Clear"}
+            </button>
+          )}
+        </div>
       </section>
 
       <p className="settings-later">Burner, burn speed, verify after burning, CD-Text and the download cache arrive in milestone 4.</p>

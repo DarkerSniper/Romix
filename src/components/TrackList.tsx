@@ -1,6 +1,7 @@
 import { Reorder, useDragControls, AnimatePresence } from "framer-motion";
 import { AlertCircle, GripVertical, X, Clock } from "lucide-react";
 import type { Track } from "../types";
+import type { PrepUpdate } from "../shared/api";
 import { formatTime } from "../lib/cd";
 
 interface TrackListProps {
@@ -10,9 +11,11 @@ interface TrackListProps {
   onRetry: (id: string) => void;
   hoveredId: string | null;
   onHover: (id: string | null) => void;
+  prep: Record<string, PrepUpdate>;
+  playingId?: string | null;
 }
 
-export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onHover }: TrackListProps) {
+export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onHover, prep, playingId }: TrackListProps) {
   if (tracks.length === 0) {
     return (
       <div className="list-empty">
@@ -34,7 +37,17 @@ export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onH
       <Reorder.Group axis="y" values={tracks} onReorder={onReorder} className="track-list" as="ol">
         <AnimatePresence initial={false}>
           {tracks.map((t, i) => (
-            <TrackRow key={t.id} track={t} index={i} hovered={hoveredId === t.id} onHover={onHover} onRemove={onRemove} onRetry={onRetry} />
+            <TrackRow
+              key={t.id}
+              track={t}
+              index={i}
+              hovered={hoveredId === t.id}
+              playing={playingId === t.id}
+              prep={t.sourceKey ? prep[t.sourceKey] : undefined}
+              onHover={onHover}
+              onRemove={onRemove}
+              onRetry={onRetry}
+            />
           ))}
         </AnimatePresence>
       </Reorder.Group>
@@ -49,19 +62,25 @@ interface RowProps {
   onHover: (id: string | null) => void;
   onRemove: (id: string) => void;
   onRetry: (id: string) => void;
+  prep?: PrepUpdate;
+  playing: boolean;
 }
 
-function TrackRow({ track: t, index, hovered, onHover, onRemove, onRetry }: RowProps) {
+const PREP_LABEL: Record<string, string> = { queued: "Waiting to prepare", downloading: "Downloading", converting: "Converting to CD audio" };
+
+function TrackRow({ track: t, index, hovered, playing, prep, onHover, onRemove, onRetry }: RowProps) {
   const controls = useDragControls();
   const resolving = t.status === "resolving";
-  const failed = t.status === "error";
+  const prepFailed = t.status === "ready" && prep?.state === "error";
+  const failed = t.status === "error" || prepFailed;
+  const preparing = t.status === "ready" && prep && !["ready", "error"].includes(prep.state);
 
   return (
     <Reorder.Item
       value={t}
       dragListener={false}
       dragControls={controls}
-      className={`track ${hovered ? "is-hover" : ""} ${failed ? "is-error" : ""}`}
+      className={`track ${hovered ? "is-hover" : ""} ${failed ? "is-error" : ""} ${playing ? "is-playing" : ""}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.15 } }}
@@ -80,7 +99,7 @@ function TrackRow({ track: t, index, hovered, onHover, onRemove, onRetry }: RowP
       </span>
       {resolving ? (
         <div className="track-cover skeleton" />
-      ) : failed ? (
+      ) : failed && !prepFailed ? (
         <div className="track-cover track-cover-error" aria-hidden="true">
           <AlertCircle size={16} />
         </div>
@@ -92,6 +111,16 @@ function TrackRow({ track: t, index, hovered, onHover, onRemove, onRetry }: RowP
           <>
             <div className="skeleton skeleton-line" style={{ width: "55%" }} />
             <div className="skeleton skeleton-line" style={{ width: "30%" }} />
+          </>
+        ) : prepFailed ? (
+          <>
+            <div className="track-title">{t.title}</div>
+            <div className="track-artist track-prep-error">
+              <span className="track-url">{prep?.error}</span>
+              <button className="link-btn" onClick={() => onRetry(t.id)}>
+                Retry
+              </button>
+            </div>
           </>
         ) : failed ? (
           <>
@@ -109,11 +138,23 @@ function TrackRow({ track: t, index, hovered, onHover, onRemove, onRetry }: RowP
             <div className="track-artist">
               {t.source === "local" && <span className="source-tag">FILE</span>}
               {t.artist}
+              {preparing && (
+                <span className="track-prep">
+                  {" · "}
+                  {PREP_LABEL[prep!.state]}
+                  {prep!.state === "downloading" ? ` ${Math.round((prep!.progress / 0.7) * 100)}%` : ""}
+                </span>
+              )}
             </div>
           </>
         )}
       </div>
-      <span className="track-time">{resolving || failed ? "" : formatTime(t.durationSec)}</span>
+      {preparing && (
+        <div className="track-progress" aria-hidden="true">
+          <div className="track-progress-fill" style={{ width: `${Math.round(prep!.progress * 100)}%` }} />
+        </div>
+      )}
+      <span className="track-time">{resolving || (failed && !prepFailed) ? "" : formatTime(t.durationSec)}</span>
       <button className="icon-btn track-remove" aria-label={`Remove ${t.title || "song"}`} onClick={() => onRemove(t.id)}>
         <X size={13} />
       </button>

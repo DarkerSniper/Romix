@@ -17,6 +17,10 @@ interface DiscProps {
   onHover: (id: string | null) => void;
   spinning?: boolean;
   compact?: boolean;
+  /** Tracks whose audio isn't prepared yet: drawn faded. */
+  pendingIds?: Set<string>;
+  /** Preview playhead: which slice is playing and how far through it (0–1). */
+  playhead?: { id: string; fraction: number } | null;
 }
 
 function point(r: number, a: number): [number, number] {
@@ -36,7 +40,7 @@ function sectorPath(a0: number, a1: number, rOut: number, rIn: number): string {
   return `M${x0} ${y0} A${rOut} ${rOut} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${rIn} ${rIn} 0 ${large} 0 ${x3} ${y3}Z`;
 }
 
-export function Disc({ tracks, totalSec, hoveredId, onHover, spinning, compact }: DiscProps) {
+export function Disc({ tracks, totalSec, hoveredId, onHover, spinning, compact, pendingIds, playhead }: DiscProps) {
   const uid = useId().replace(/:/g, "");
   const ready = tracks.filter((t) => t.status === "ready");
   const sum = ready.reduce((a, t) => a + t.durationSec, 0);
@@ -105,7 +109,9 @@ export function Disc({ tracks, totalSec, hoveredId, onHover, spinning, compact }
             if (!t) return null;
             const mid = (arc.a0 + arc.a1) / 2;
             const isHover = hoveredId === id;
-            const dim = hoveredId !== null && !isHover;
+            const focus = hoveredId ?? playhead?.id ?? null;
+            const dim = focus !== null && focus !== id;
+            const pending = pendingIds?.has(id) ?? false;
             const lift = isHover ? 5 : 0;
             const dx = Math.sin(mid) * lift;
             const dy = -Math.cos(mid) * lift;
@@ -116,7 +122,7 @@ export function Disc({ tracks, totalSec, hoveredId, onHover, spinning, compact }
             return (
               <g
                 key={id}
-                className={`slice ${dim ? "is-dim" : ""}`}
+                className={`slice ${dim ? "is-dim" : ""} ${pending ? "is-pending" : ""}`}
                 style={{ transform: `translate(${dx}px, ${dy}px)` }}
                 onMouseEnter={() => onHover(id)}
                 onMouseLeave={() => onHover(null)}
@@ -135,6 +141,19 @@ export function Disc({ tracks, totalSec, hoveredId, onHover, spinning, compact }
               </g>
             );
           })}
+
+          {playhead && arcs.get(playhead.id) && (() => {
+            const a = arcs.get(playhead.id)!;
+            const angle = a.a0 + (a.a1 - a.a0) * Math.max(0, Math.min(1, playhead.fraction));
+            const [x0, y0] = point(R_IN, angle);
+            const [x1, y1] = point(R_OUT + 2, angle);
+            return (
+              <g className="playhead" aria-hidden="true">
+                <line x1={x0} y1={y0} x2={x1} y2={y1} />
+                <circle cx={x1} cy={y1} r={4} />
+              </g>
+            );
+          })()}
 
           <circle cx={C} cy={C} r={R_OUT + 4} fill={`url(#${uid}-hl)`} className="disc-highlight" />
           <circle cx={C} cy={C} r={R_OUT + 4} className="disc-rim" />
