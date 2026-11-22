@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { DepId, DepStatus } from "../src/shared/api";
 import { paths } from "./paths";
 import { ffmpegPath, majorOf, MIN_NODE_MAJOR, nodePath, run, ytdlpPath, resetRuntimeCache } from "./tools";
+import { buildBurner, burnerVersion } from "./burner";
 
 /**
  * Romix installs its own helpers on first run, into its own folder, and
@@ -21,6 +22,8 @@ const INFO: Record<DepId, { name: string; purpose: string; approxMB: number }> =
   ytdlp: { name: "yt-dlp", purpose: "Reads songs from YouTube", approxMB: 24 },
   ffmpeg: { name: "FFmpeg", purpose: "Converts audio to CD quality", approxMB: 87 },
   node: { name: "Node.js", purpose: "Lets yt-dlp pass YouTube's checks", approxMB: 34 },
+  // Not downloaded: compiled from Romix's own source with Windows' built-in C# compiler.
+  burner: { name: "Burner helper", purpose: "Talks to your CD burner (built on this PC)", approxMB: 0 },
 };
 
 const status = new Map<DepId, DepStatus>();
@@ -47,6 +50,7 @@ async function versionOf(id: DepId): Promise<string | undefined> {
     const r = await run(ffmpegPath(), ["-hide_banner", "-version"], { timeoutMs: 20_000 });
     return r.code === 0 ? r.stdout.match(/ffmpeg version n?([\w.-]+)/)?.[1]?.split("-")[0] : undefined;
   }
+  if (id === "burner") return burnerVersion();
   if (!existsSync(nodePath())) return undefined;
   const r = await run(nodePath(), ["--version"], { timeoutMs: 10_000 });
   const v = r.stdout.trim();
@@ -67,7 +71,8 @@ export async function checkDeps(): Promise<DepStatus[]> {
 }
 
 export function allReady(): boolean {
-  return [...status.values()].length === 3 && [...status.values()].every((d) => d.state === "ready");
+  const list = [...status.values()];
+  return list.length === Object.keys(INFO).length && list.every((d) => d.state === "ready");
 }
 
 /** Installs whatever is missing (idempotent; concurrent calls share one run). */
@@ -92,7 +97,10 @@ async function installOne(id: DepId) {
     set(id, { state: "downloading", progress: 0, error: undefined });
     if (id === "ytdlp") await installYtdlp();
     else if (id === "ffmpeg") await installFfmpeg();
-    else await installNode();
+    else if (id === "burner") {
+      set(id, { state: "installing", progress: 0.5 });
+      await buildBurner();
+    } else await installNode();
     const version = await versionOf(id);
     if (!version) throw new Error("Installed, but it doesn't run");
     set(id, { state: "ready", progress: 1, version });

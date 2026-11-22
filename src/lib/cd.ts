@@ -13,6 +13,12 @@ export function formatTime(totalSec: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 }
 
+/** CD times are always written in minutes ("79:58"), never hours. */
+export function formatDiscTime(totalSec: number): string {
+  const s = Math.max(0, Math.floor(totalSec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 /** Total playing time of the disc, including gaps or minus crossfade overlap. */
 export function discLength(tracks: Track[], opts: DiscOptions): number {
   const sum = tracks.reduce((acc, t) => acc + t.durationSec, 0);

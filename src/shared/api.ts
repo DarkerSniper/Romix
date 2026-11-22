@@ -34,7 +34,7 @@ export type ResolveResult =
 
 /* ---------- Built-in setup: helper programs Romix downloads into its own folder ---------- */
 
-export type DepId = "ytdlp" | "ffmpeg" | "node";
+export type DepId = "ytdlp" | "ffmpeg" | "node" | "burner";
 
 export interface DepStatus {
   id: DepId;
@@ -90,6 +90,93 @@ export type RenderResult =
   | { ok: true; tracks: RenderedTrack[]; totalSamples: number; targetLufs: number | null }
   | { ok: false; message: string };
 
+/* ---------- Milestone 4: burning ---------- */
+
+export interface DriveMedia {
+  present: boolean;
+  /** "none" | "CD-R" | "CD-RW" | "CD-ROM" | "DVD" | "other" */
+  type: string;
+  blank?: boolean;
+  erasable?: boolean;
+  /** Can Windows' engine write audio to this disc in one pass? */
+  supported?: boolean;
+  /** Last sector where the disc's lead-out may start: the usable capacity. */
+  lastLeadout?: number;
+  /** Write speeds the drive offers for this disc, in sectors per second (75 = 1x). */
+  speeds?: number[];
+}
+
+export interface DriveInfo {
+  id: string;
+  name: string;
+  path: string;
+  writesCd: boolean;
+  media?: DriveMedia;
+  error?: string;
+}
+
+export interface BurnRequest {
+  driveId: string;
+  keys: string[];
+  options: DiscRequest["options"];
+  /** Sectors per second; 0 = the drive's fastest. */
+  speed: number;
+  verify: boolean;
+  eject: boolean;
+  /** Keep the prepared burn files for another copy. */
+  keepForCopies: boolean;
+  /** Check everything (disc, capacity, layout) without writing. */
+  dryRun?: boolean;
+}
+
+export interface BurnProgress {
+  phase: "build" | "prepare" | "burn" | "finish" | "verify" | "erase";
+  /** 0–1 within the phase, when known. */
+  progress?: number;
+  remainingSec?: number;
+}
+
+export interface VerifyReport {
+  /** Combined write+read offset of the drive, in samples (normal: a few hundred). */
+  offset: number;
+  tracks: Array<{ track: number; ok: boolean; differentSamples: number; unreadableSectors: number }>;
+}
+
+export type BurnResult =
+  | { ok: true; speedX?: number; verify?: VerifyReport; dryRun?: boolean }
+  | { ok: false; message: string; cancelled?: boolean };
+
+/* ---------- Saved projects ---------- */
+
+export interface SavedTrack {
+  title: string;
+  artist: string;
+  durationSec: number;
+  cover: string;
+  color: string;
+  source: "youtube" | "local";
+  videoId?: string;
+  filePath?: string;
+  url?: string;
+}
+
+export interface Project {
+  id: string;
+  title: string;
+  updatedAt: number;
+  options: DiscRequest["options"];
+  tracks: SavedTrack[];
+}
+
+export interface ProjectSummary {
+  id: string;
+  title: string;
+  updatedAt: number;
+  songs: number;
+  durationSec: number;
+  covers: string[];
+}
+
 export interface CacheInfo {
   bytes: number;
   files: number;
@@ -114,6 +201,22 @@ export interface RomixBridge {
   onDepsUpdate(cb: (list: DepStatus[]) => void): () => void;
   updateYtdlp(): Promise<UpdateResult>;
   setTitleBarTheme(theme: "dark" | "light"): void;
+
+  drives(): Promise<DriveInfo[]>;
+  onDrivesUpdate(cb: (drives: DriveInfo[]) => void): () => void;
+  burn(req: BurnRequest): Promise<BurnResult>;
+  onBurnProgress(cb: (p: BurnProgress) => void): () => void;
+  /** Stops a burn in progress. A CD-R stopped mid-burn can't be used again. */
+  cancelBurn(): void;
+  /** Deletes prepared burn files once no more copies are wanted. */
+  endBurnSession(): void;
+  eject(driveId: string): Promise<void>;
+  erase(driveId: string): Promise<{ ok: boolean; message?: string }>;
+
+  listProjects(): Promise<ProjectSummary[]>;
+  loadProject(id: string): Promise<Project | null>;
+  saveProject(p: Omit<Project, "updatedAt">): Promise<ProjectSummary>;
+  deleteProject(id: string): Promise<void>;
 }
 
 /** Minimal subset of yt-dlp's --dump-json output that Romix reads. */

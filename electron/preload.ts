@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { DepStatus, PrepUpdate, RomixBridge } from "../src/shared/api";
+import type { BurnProgress, DepStatus, DriveInfo, PrepUpdate, RomixBridge } from "../src/shared/api";
 
 // The only surface the UI gets. No Node, no raw ipcRenderer, no file system.
 const bridge: RomixBridge = {
@@ -27,6 +27,28 @@ const bridge: RomixBridge = {
   clearCache: () => ipcRenderer.invoke("romix:clear-cache"),
   updateYtdlp: () => ipcRenderer.invoke("romix:update-ytdlp"),
   setTitleBarTheme: (theme) => ipcRenderer.send("romix:titlebar-theme", theme),
+
+  drives: () => ipcRenderer.invoke("romix:drives"),
+  onDrivesUpdate: (cb) => {
+    const h = (_e: unknown, d: DriveInfo[]) => cb(d);
+    ipcRenderer.on("romix:drives", h);
+    return () => ipcRenderer.removeListener("romix:drives", h);
+  },
+  burn: (req) => ipcRenderer.invoke("romix:burn", req),
+  onBurnProgress: (cb) => {
+    const h = (_e: unknown, p: BurnProgress) => cb(p);
+    ipcRenderer.on("romix:burn", h);
+    return () => ipcRenderer.removeListener("romix:burn", h);
+  },
+  cancelBurn: () => ipcRenderer.send("romix:cancel-burn"),
+  endBurnSession: () => ipcRenderer.send("romix:end-burn-session"),
+  eject: (driveId) => ipcRenderer.invoke("romix:eject", driveId),
+  erase: (driveId) => ipcRenderer.invoke("romix:erase", driveId),
+
+  listProjects: () => ipcRenderer.invoke("romix:projects"),
+  loadProject: (id) => ipcRenderer.invoke("romix:project-load", id),
+  saveProject: (p) => ipcRenderer.invoke("romix:project-save", p),
+  deleteProject: (id) => ipcRenderer.invoke("romix:project-delete", id),
 };
 
 contextBridge.exposeInMainWorld("romix", bridge);

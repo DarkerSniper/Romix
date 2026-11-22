@@ -4,6 +4,8 @@ import type { DiscOptions } from "../types";
 export const SAMPLE_RATE = 44_100;
 export const SECTOR_SAMPLES = 588;
 export const GAP_SAMPLES = 2 * SAMPLE_RATE; // 150 sectors
+/** Red Book minimum track length: 4 seconds (300 sectors). Burners reject shorter tracks. */
+export const MIN_TRACK_SAMPLES = 4 * SAMPLE_RATE;
 export const TRUE_PEAK_CEILING_DB = -1;
 
 export interface PlanInput {
@@ -81,7 +83,8 @@ export function planDisc(inputs: PlanInput[], opts: DiscOptions): DiscPlan {
     const continuous = next && opts.gapMode !== "gap2";
     // Continuous playback: move the boundary forward into the next song instead of inserting silence.
     const borrowFromNext = continuous ? Math.min(pad, Math.max(0, next.samples - crossfadeOut)) : 0;
-    const silencePad = pad - borrowFromNext;
+    // Very short songs are padded with silence up to the 4-second minimum (already whole sectors).
+    const silencePad = pad - borrowFromNext + Math.max(0, MIN_TRACK_SAMPLES - (own + pad));
 
     const pregap = i > 0 && opts.gapMode === "gap2" ? GAP_SAMPLES : 0;
     cursor += pregap;

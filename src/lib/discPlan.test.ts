@@ -51,6 +51,12 @@ describe("planDisc", () => {
     expect(plan.tracks[0].crossfadeOut).toBe(Math.floor(s(4) / 2));
   });
 
+  it("pads songs shorter than 4 seconds up to the CD minimum", () => {
+    const plan = planDisc([track("a", s(2.5)), track("b", s(60))], opts("none"));
+    expect(plan.tracks[0].samples).toBe(4 * 44_100);
+    expect(plan.tracks[0].samples % SECTOR_SAMPLES).toBe(0);
+  });
+
   it("no gain when loudness evening is off", () => {
     const plan = planDisc([track("a", s(10), -8), track("b", s(10), -20)], opts("none", false));
     expect(plan.tracks.map((t) => t.gainDb)).toEqual([0, 0]);

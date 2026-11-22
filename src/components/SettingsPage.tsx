@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ThemePref } from "../lib/theme";
 import type { CacheInfo, DepStatus } from "../shared/api";
 import { bridge, isDesktop } from "../lib/bridge";
+import type { BurnPrefs } from "../lib/burnPrefs";
 
 const OPTIONS: Array<{ id: ThemePref; label: string }> = [
   { id: "dark", label: "Dark" },
@@ -45,12 +46,14 @@ interface SettingsPageProps {
   pref: ThemePref;
   onChange: (p: ThemePref) => void;
   onToast: (msg: string) => void;
+  burnPrefs: BurnPrefs;
+  setBurnPrefs: (patch: Partial<BurnPrefs>) => void;
 }
 
 const formatBytes = (b: number) =>
   b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : b > 0 ? `${Math.round(b / 1e3)} KB` : "Empty";
 
-export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
+export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs }: SettingsPageProps) {
   const [deps, setDeps] = useState<DepStatus[]>([]);
   const [cache, setCache] = useState<CacheInfo | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -136,6 +139,47 @@ export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
         )}
       </section>
 
+      <h2 className="settings-heading">Burning</h2>
+      <section className="settings-group">
+        <div className="settings-row">
+          <div className="settings-text">
+            <div className="settings-label">Default speed</div>
+            <div className="settings-hint">Best quality burns at the slowest speed the disc supports, which older car stereos read most reliably.</div>
+          </div>
+          <div className="segmented" role="radiogroup" aria-label="Default burn speed">
+            {(["best", "fastest"] as const).map((s) => (
+              <button key={s} role="radio" aria-checked={burnPrefs.speed === s} className={burnPrefs.speed === s ? "is-active" : ""} onClick={() => setBurnPrefs({ speed: s })}>
+                {burnPrefs.speed === s && <span className="seg-pill" />}
+                <span className="seg-label">{s === "best" ? "Best quality" : "Fastest"}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="settings-row settings-row-sep">
+          <div className="settings-text">
+            <div className="settings-label">Check the disc after burning</div>
+            <div className="settings-hint">Reads every track back and compares it bit for bit with what was written.</div>
+          </div>
+          <span className="toggle">
+            <input type="checkbox" checked={burnPrefs.verify} onChange={(e) => setBurnPrefs({ verify: e.target.checked })} />
+            <span className="toggle-track" aria-hidden="true">
+              <span className="toggle-thumb" />
+            </span>
+          </span>
+        </label>
+        <label className="settings-row settings-row-sep">
+          <div className="settings-text">
+            <div className="settings-label">Eject when done</div>
+          </div>
+          <span className="toggle">
+            <input type="checkbox" checked={burnPrefs.eject} onChange={(e) => setBurnPrefs({ eject: e.target.checked })} />
+            <span className="toggle-track" aria-hidden="true">
+              <span className="toggle-thumb" />
+            </span>
+          </span>
+        </label>
+      </section>
+
       <h2 className="settings-heading">Storage</h2>
       <section className="settings-group">
         <div className="settings-row">
@@ -153,7 +197,6 @@ export function SettingsPage({ pref, onChange, onToast }: SettingsPageProps) {
         </div>
       </section>
 
-      <p className="settings-later">Burner, burn speed, verify after burning, CD-Text and the download cache arrive in milestone 4.</p>
     </div>
   );
 }

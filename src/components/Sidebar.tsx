@@ -2,6 +2,8 @@ import { motion } from "framer-motion";
 import { Disc3, FolderOpen, Library, Moon, Printer, Settings, Sun } from "lucide-react";
 import type { Page } from "../types";
 import { BrandMark } from "./BrandMark";
+import type { DriveInfo } from "../shared/api";
+import { burners, discLabel, discState } from "../lib/drives";
 
 const NAV: Array<{ id: Page; label: string; icon: typeof Disc3 }> = [
   { id: "disc", label: "New disc", icon: Disc3 },
@@ -16,9 +18,12 @@ interface SidebarProps {
   onNavigate: (p: Page) => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
+  drives: DriveInfo[] | null;
 }
 
-export function Sidebar({ page, onNavigate, theme, onToggleTheme }: SidebarProps) {
+export function Sidebar({ page, onNavigate, theme, onToggleTheme, drives }: SidebarProps) {
+  const drive = burners(drives)[0];
+  const state = drives === null ? "checking" : discState(drive);
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -43,8 +48,9 @@ export function Sidebar({ page, onNavigate, theme, onToggleTheme }: SidebarProps
         ))}
       </nav>
       <div className="sidebar-foot">
-        <span className="drive-status">
-          <span className="drive-dot" /> No drive checked yet
+        <span className={`drive-status is-${state}`} title={drive ? `${drive.name} (${drive.path.replace(/\\$/, "")})` : undefined}>
+          <span className="drive-dot" />
+          <span className="drive-text">{drives === null ? "Checking for a burner…" : discLabel(drive)}</span>
         </span>
         <button
           className="icon-btn theme-toggle"

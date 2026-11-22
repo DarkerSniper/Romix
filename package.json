@@ -13,6 +13,7 @@
     "setup": "node scripts/setup.mjs",
     "test": "vitest run",
     "test:live": "node scripts/live-check.mjs",
+    "test:burn": "node scripts/burn-test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

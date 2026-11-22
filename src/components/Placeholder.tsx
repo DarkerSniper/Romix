@@ -1,13 +1,8 @@
 import type { Page } from "../types";
 
-type PlaceholderPage = Exclude<Page, "disc" | "settings">;
+type PlaceholderPage = Exclude<Page, "disc" | "settings" | "projects">;
 
 const COPY: Record<PlaceholderPage, { title: string; body: string; when: string }> = {
-  projects: {
-    title: "Saved projects",
-    body: "Save a disc to burn more copies later, or queue several copies in a row.",
-    when: "Milestone 4",
-  },
   shelf: {
     title: "Your shelf",
     body: "Every disc you burn lands here as a jewel case, so you can see and re-burn your history.",

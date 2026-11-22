@@ -29,6 +29,8 @@ export const paths = {
   pcm: join(dataRoot, "cache", "pcm"),
   /** Final per-track 16-bit files exactly as they will be burned. */
   disc: join(dataRoot, "cache", "disc"),
+  /** Saved discs (one JSON file each). Not a cache: never cleared automatically. */
+  projects: join(dataRoot, "projects"),
 };
 
 /** Audio caches that "Clear cache" empties (song metadata cache is kept: it's tiny). */

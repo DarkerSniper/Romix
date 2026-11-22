@@ -1,4 +1,4 @@
-import type { DepStatus, PrepUpdate, RomixBridge } from "../shared/api";
+import type { BurnProgress, DepStatus, DriveInfo, PrepUpdate, Project, ProjectSummary, RomixBridge } from "../shared/api";
 import { mockMetadata } from "./mock";
 
 declare global {
@@ -55,6 +55,71 @@ const mockBridge: RomixBridge = {
   clearCache: async () => ({ bytes: 0, files: 0, path: "" }),
   updateYtdlp: async () => ({ ok: false, message: "Available in the desktop app" }),
   setTitleBarTheme: () => {},
+
+  drives: async () => [PREVIEW_DRIVE],
+  onDrivesUpdate: () => () => {},
+  async burn(req) {
+    const phases: Array<[BurnProgress["phase"], number]> = [["build", 6], ["prepare", 4], ["burn", 40], ["finish", 4]];
+    if (req.verify) phases.push(["verify", 24]);
+    for (const [phase, steps] of phases) {
+      for (let i = 0; i <= steps; i++) {
+        if (burnCancelled) {
+          burnCancelled = false;
+          return { ok: false, message: "The burn was stopped", cancelled: true };
+        }
+        burnListeners.forEach((cb) => cb({ phase, progress: i / steps, remainingSec: phase === "burn" ? Math.round((steps - i) * 4) : undefined }));
+        await new Promise((r) => setTimeout(r, 70));
+      }
+    }
+    return { ok: true, speedX: 16, verify: req.verify ? { offset: 0, tracks: req.keys.map((_, i) => ({ track: i + 1, ok: true, differentSamples: 0, unreadableSectors: 0 })) } : undefined };
+  },
+  onBurnProgress: (cb) => {
+    burnListeners.add(cb);
+    return () => burnListeners.delete(cb);
+  },
+  cancelBurn: () => {
+    burnCancelled = true;
+  },
+  endBurnSession: () => {},
+  eject: async () => {},
+  erase: async () => ({ ok: true }),
+
+  listProjects: async () => previewProjects().map(summarize),
+  loadProject: async (id) => previewProjects().find((p) => p.id === id) ?? null,
+  async saveProject(p) {
+    const full: Project = { ...p, updatedAt: Date.now() };
+    writePreviewProjects([full, ...previewProjects().filter((x) => x.id !== p.id)]);
+    return summarize(full);
+  },
+  deleteProject: async (id) => writePreviewProjects(previewProjects().filter((p) => p.id !== id)),
 };
+
+/* Browser preview helpers */
+const burnListeners = new Set<(p: BurnProgress) => void>();
+let burnCancelled = false;
+const PREVIEW_DRIVE: DriveInfo = {
+  id: "preview",
+  name: "Preview CD burner",
+  path: "E:\\",
+  writesCd: true,
+  media: { present: true, type: "CD-R", blank: true, supported: true, lastLeadout: 359_849, speeds: [600, 1200, 1800, 3600] },
+};
+function summarize(p: Project): ProjectSummary {
+  return { id: p.id, title: p.title, updatedAt: p.updatedAt, songs: p.tracks.length, durationSec: p.tracks.reduce((n, t) => n + t.durationSec, 0), covers: p.tracks.slice(0, 4).map((t) => t.cover) };
+}
+function previewProjects(): Project[] {
+  try {
+    return JSON.parse(localStorage.getItem("romix.previewProjects") ?? "[]") as Project[];
+  } catch {
+    return [];
+  }
+}
+function writePreviewProjects(list: Project[]) {
+  try {
+    localStorage.setItem("romix.previewProjects", JSON.stringify(list));
+  } catch {
+    /* preview only */
+  }
+}
 
 export const bridge: RomixBridge = isDesktop ? window.romix! : mockBridge;

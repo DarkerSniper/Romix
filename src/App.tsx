@@ -20,6 +20,9 @@ import { usePlayer } from "./lib/player";
 import { Transport } from "./components/Transport";
 import { SetupSheet, useDeps } from "./components/SetupSheet";
 import type { PrepSource, PrepUpdate } from "./shared/api";
+import { ProjectsPage } from "./components/ProjectsPage";
+import { useDrives } from "./lib/drives";
+import { useBurnPrefs } from "./lib/burnPrefs";
 
 function audioDuration(url: string): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -45,6 +48,9 @@ export default function App() {
   const [prep, setPrep] = useState<Record<string, PrepUpdate>>({});
   const setup = useDeps();
   const player = usePlayer();
+  const drives = useDrives();
+  const [burnPrefs, setBurnPrefs] = useBurnPrefs();
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   const ready = useMemo(() => tracks.filter((t) => t.status === "ready"), [tracks]);
   const totalSec = discLength(ready, options);
@@ -236,12 +242,60 @@ export default function App() {
     setTracks((prev) => prev.filter((t) => t.id !== id));
   };
 
+  /** Saves the current disc (songs, order, options) into Romix's folder. */
+  const saveProject = useCallback(async () => {
+    if (ready.length === 0) return setToast("Add some songs before saving");
+    const id = projectId ?? crypto.randomUUID();
+    await bridge.saveProject({
+      id,
+      title,
+      options,
+      tracks: ready.map((t) => ({
+        title: t.title,
+        artist: t.artist,
+        durationSec: t.durationSec,
+        cover: t.cover,
+        color: t.color,
+        source: t.source,
+        videoId: t.videoId,
+        filePath: t.filePath,
+        url: t.url,
+      })),
+    });
+    setProjectId(id);
+    setToast("Saved");
+  }, [ready, projectId, title, options]);
+
+  const openProject = useCallback(
+    async (id: string) => {
+      const p = await bridge.loadProject(id);
+      if (!p) return setToast("That saved disc couldn't be opened");
+      player.reset();
+      setTracks(p.tracks.map((t) => ({ ...t, id: crypto.randomUUID(), status: "ready" as const })));
+      setTitle(p.title);
+      setOptions(p.options);
+      setProjectId(p.id);
+      setPage("disc");
+    },
+    [player],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void saveProject();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [saveProject]);
+
   const startBurn = () => {
     if (ready.length === 0) return setToast("Add some songs first");
     if (level === "over") return setToast(`The disc is ${formatTime(totalSec - CD_MAX_SEC)} too long. Remove a song or switch to crossfade.`);
     if (tracks.some((t) => t.status === "resolving")) return setToast("Wait for all songs to finish loading");
     if (tracks.some((t) => t.status === "error")) return setToast("Retry or remove the songs that couldn't load");
-    if (!isDesktop) return setToast("Burning works in the desktop app");
     player.pause();
     setBurning(true);
   };
@@ -263,16 +317,21 @@ export default function App() {
       }}
     >
       {isDesktop && <div className="drag-strip" aria-hidden="true" />}
-      <Sidebar page={page} onNavigate={setPage} theme={theme.resolved} onToggleTheme={theme.toggle} />
+      <Sidebar page={page} onNavigate={setPage} theme={theme.resolved} onToggleTheme={theme.toggle} drives={drives} />
 
       <main className="main">
         {page === "settings" ? (
-          <SettingsPage pref={theme.pref} onChange={theme.setPref} onToast={setToast} />
+          <SettingsPage pref={theme.pref} onChange={theme.setPref} onToast={setToast} burnPrefs={burnPrefs} setBurnPrefs={setBurnPrefs} />
+        ) : page === "projects" ? (
+          <ProjectsPage currentId={projectId} hasWork={tracks.length > 0} onOpen={(id) => void openProject(id)} />
         ) : page !== "disc" ? (
           <Placeholder page={page} />
         ) : (
           <>
             <header className="header">
+              <button className="btn header-save" onClick={() => void saveProject()} title="Save this disc (Ctrl+S)">
+                {projectId ? "Save" : "Save disc"}
+              </button>
               <div>
                 <p className="eyebrow">Audio CD</p>
                 <input className="title-input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Disc title" />
@@ -340,12 +399,16 @@ export default function App() {
         {burning && (
           <BurnSheet
             tracks={ready}
+            keys={ready.map((t) => t.sourceKey).filter(Boolean) as string[]}
+            options={options}
             totalSec={totalSec}
             title={title}
             prepProgress={allPrepared ? 1 : Math.min(0.999, prepProgress)}
             prepError={prepError}
-            buildDisc={buildDisc}
+            drives={drives}
+            prefs={burnPrefs}
             onClose={() => setBurning(false)}
+            onToast={setToast}
           />
         )}
       </AnimatePresence>
