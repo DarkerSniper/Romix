@@ -3,8 +3,8 @@ import { join } from "node:path";
 import type { ResolvedTrack } from "../src/shared/api";
 import { paths } from "./paths";
 
-// v2: covers are the largest available (for printing), so older entries are refetched.
-const VERSION = 2;
+// v3: covers are the largest available (for printing, preferring yt-dlp's best-ranked thumbnail), so older entries are refetched.
+const VERSION = 4;
 const dir = () => paths.trackCache;
 const safeId = (id: string) => id.replace(/[^\w-]/g, "_");
 

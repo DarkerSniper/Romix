@@ -10,6 +10,8 @@ export interface Track {
   cover: string;
   /** Print-resolution cover (romix-cover:// URL), when available. */
   coverHi?: string;
+  /** Pixel size of the print cover. */
+  coverPx?: number;
   /** Dominant colour of the cover, used for tints and the ambient background. */
   color: string;
   source: TrackSource;

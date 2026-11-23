@@ -134,7 +134,9 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
   };
   const html = useMemo(() => buildInsertsHtml(input), [JSON.stringify(input)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const softCovers = source.tracks.filter((t) => !t.coverHi).length;
+  // Covers that will look soft at 12 cm: no print copy, or under ~1000 px (≈ 210 dpi). Only the ones the front uses matter most.
+  const softCovers = source.tracks.filter((t) => !t.coverHi || (t.coverPx ?? 0) < 1000).length;
+  const sharpest = Math.max(0, ...source.tracks.map((t) => t.coverPx ?? 0));
   const hasYouTube = Boolean(listenUrl(input.tracks));
 
   const out = async (action: "pdf" | "print") => {
@@ -296,9 +298,10 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
           {toggle("Size check ruler", ruler, setRuler, "A 10 cm line to check the printer didn't scale the page")}
         </div>
 
-        {softCovers > 0 && (
+        {softCovers > 0 && !customCover && (
           <p className="form-note is-warning">
-            {softCovers} {softCovers === 1 ? "cover was" : "covers were"} added before print-quality covers and may print soft. Re-adding {softCovers === 1 ? "that song" : "those songs"} fetches a sharper copy.
+            {softCovers} of {source.tracks.length} covers will print a little soft at CD size
+            {sharpest > 0 ? ` (music-video stills top out around ${Math.round(sharpest / (120 / 25.4))} dpi; album art is sharper)` : ""}. For a crisp front, use One cover with your own image, or Ring, where each cover is shown smaller.
           </p>
         )}
         <p className="form-note">

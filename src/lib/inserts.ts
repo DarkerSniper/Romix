@@ -241,8 +241,13 @@ function labelPiece(input: InsertInput): string {
     const text = esc(input.tracks.map((t, i) => `${i + 1} ${t.title}`).join("  ·  "));
     const r = d / 2 - 4.2;
     const circumference = 2 * Math.PI * r;
-    const fs = Math.max(1.4, Math.min(2.4, circumference / Math.max(1, text.length * 0.55)));
-    ring = `<svg class="label-ring" viewBox="0 0 ${d} ${d}"><circle cx="${d / 2}" cy="${d / 2}" r="${r + 0.6}" fill="none" stroke="rgba(0,0,0,.62)" stroke-width="${fs + 2}"/><path id="ringpath" d="M ${d / 2} ${d / 2} m -${r} 0 a ${r} ${r} 0 1 1 ${2 * r} 0 a ${r} ${r} 0 1 1 -${2 * r} 0" fill="none"/><text font-size="${fs.toFixed(2)}" fill="#fff" letter-spacing="0.1"><textPath href="#ringpath" textLength="${(circumference * 0.97).toFixed(1)}" lengthAdjust="spacing">${text}</textPath></text></svg>`;
+    // Natural spacing, centred at the top; only long tracklists are shrunk and fitted to the whole ring.
+    const natural = 2.4 * 0.55 * text.length;
+    const fits = natural <= circumference * 0.92;
+    const fs = fits ? 2.4 : Math.max(1.4, (circumference * 0.95) / (text.length * 0.55));
+    const fit = fits ? "" : ` textLength="${(circumference * 0.97).toFixed(1)}" lengthAdjust="spacing"`;
+    // Path starts at the bottom and runs clockwise, so 50 % along it is the top of the disc.
+    ring = `<svg class="label-ring" viewBox="0 0 ${d} ${d}"><circle cx="${d / 2}" cy="${d / 2}" r="${r + 0.6}" fill="none" stroke="rgba(0,0,0,.62)" stroke-width="${fs + 2}"/><path id="ringpath" d="M ${d / 2} ${d / 2 + r} a ${r} ${r} 0 1 1 0 -${2 * r} a ${r} ${r} 0 1 1 0 ${2 * r}" fill="none"/><text font-size="${fs.toFixed(2)}" fill="#fff" letter-spacing="0.1"><textPath href="#ringpath" startOffset="50%" text-anchor="middle"${fit}>${text}</textPath></text></svg>`;
   }
   return `
     ${src ? `<img src="${attr(src)}" alt="">` : ""}

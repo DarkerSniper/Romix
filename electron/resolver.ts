@@ -117,14 +117,12 @@ async function fetchCover(info: YtdlpInfo): Promise<string | null> {
   const sized = thumbs.filter((t) => t.width && t.height);
   const square = sized.filter((t) => t.width === t.height && t.width! >= 200).sort((a, b) => b.width! - a.width!);
   const largest = [...sized].sort((a, b) => b.width! - a.width!);
-  const urls = [
-    square[0] && upgraded(square[0].url),
-    square[0]?.url,
-    largest[0]?.url,
-    ...[...thumbs].sort((a, b) => (b.preference ?? 0) - (a.preference ?? 0)).map((t) => t.url),
-  ].filter(Boolean) as string[];
+  // yt-dlp ranks thumbnails best-last (via `preference`); its best one (maxresdefault) often has no listed size.
+  const byPreference = thumbs.map((t, i) => ({ t, i })).sort((a, b) => (b.t.preference ?? 0) - (a.t.preference ?? 0) || b.i - a.i).map((x) => x.t.url);
+  // YouTube lists some thumbnail URLs that don't exist (404), so try a good number before giving up.
+  const urls = [square[0] && upgraded(square[0].url), square[0]?.url, ...byPreference.slice(0, 4), largest[0]?.url, ...byPreference.slice(4)].filter(Boolean) as string[];
 
-  for (const url of [...new Set(urls)].slice(0, 5)) {
+  for (const url of [...new Set(urls)].slice(0, 14)) {
     try {
       const res = await net.fetch(url);
       if (!res.ok) continue;

@@ -6,6 +6,23 @@
 const UI_SIZE = 512;
 const PRINT_MAX = 1500;
 
+export interface LineStats {
+  mean: number;
+  max: number;
+}
+
+/**
+ * How many lines from the edge are a solid black bar: dark on average and with
+ * no bright detail. Capped at 30 %, and ignored if it's under 2 % (dark artwork
+ * shouldn't be cropped).
+ */
+export function barLines(lines: LineStats[]): number {
+  const cap = Math.floor(lines.length * 0.3);
+  let n = 0;
+  while (n < cap && lines[n].mean < 16 && lines[n].max < 48) n++;
+  return n >= Math.ceil(lines.length * 0.02) ? n : 0;
+}
+
 function load(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -25,21 +42,61 @@ export interface ProcessedCover {
   printSize: number;
 }
 
-function square(img: HTMLImageElement, size: number): HTMLCanvasElement {
-  const side = Math.min(img.naturalWidth, img.naturalHeight);
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The picture area without baked-in black bars (cinema-style video thumbnails). */
+function contentBox(img: HTMLImageElement): Box {
+  const scale = Math.min(1, 320 / img.naturalWidth);
+  const w = Math.max(1, Math.round(img.naturalWidth * scale)), h = Math.max(1, Math.round(img.naturalHeight * scale));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0, w, h);
+  const { data } = ctx.getImageData(0, 0, w, h);
+  const lum = (i: number) => 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  const rows: LineStats[] = [], cols: LineStats[] = [];
+  for (let y = 0; y < h; y++) {
+    let sum = 0, max = 0;
+    for (let x = 0; x < w; x++) { const l = lum((y * w + x) * 4); sum += l; max = Math.max(max, l); }
+    rows.push({ mean: sum / w, max });
+  }
+  for (let x = 0; x < w; x++) {
+    let sum = 0, max = 0;
+    for (let y = 0; y < h; y++) { const l = lum((y * w + x) * 4); sum += l; max = Math.max(max, l); }
+    cols.push({ mean: sum / h, max });
+  }
+  const top = barLines(rows), bottom = barLines([...rows].reverse());
+  const left = barLines(cols), right = barLines([...cols].reverse());
+  return {
+    x: left / scale,
+    y: top / scale,
+    w: (w - left - right) / scale,
+    h: (h - top - bottom) / scale,
+  };
+}
+
+function square(img: HTMLImageElement, box: Box, size: number): HTMLCanvasElement {
+  const side = Math.min(box.w, box.h);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext("2d")!;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+  ctx.drawImage(img, box.x + (box.w - side) / 2, box.y + (box.h - side) / 2, side, side, 0, 0, size, size);
   return canvas;
 }
 
 export async function processCover(dataUrl: string): Promise<ProcessedCover> {
   const img = await load(dataUrl);
-  const ui = square(img, UI_SIZE);
-  const printSize = Math.min(PRINT_MAX, Math.min(img.naturalWidth, img.naturalHeight));
-  const print = square(img, printSize);
+  const box = contentBox(img);
+  const ui = square(img, box, UI_SIZE);
+  const printSize = Math.round(Math.min(PRINT_MAX, Math.min(box.w, box.h)));
+  const print = square(img, box, printSize);
   return {
     cover: ui.toDataURL("image/jpeg", 0.9),
     color: dominantColor(ui.getContext("2d")!),

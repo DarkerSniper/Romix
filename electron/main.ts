@@ -9,7 +9,9 @@ import { burn, cancelBurn, eject, endBurnSession, erase, layout, listDrives, onB
 import { deleteProject, listProjects, loadProject, saveProject } from "./projects";
 import { analyze } from "./analyze";
 import { listShelf, removeFromShelf } from "./shelf";
-import { outputInserts } from "./insertsOut";
+import { outputInserts, renderInsertsPdf, renderInsertsPng } from "./insertsOut";
+import { buildInsertsHtml } from "../src/lib/inserts";
+import { writeFile } from "node:fs/promises";
 import { pruneCache, setCachePolicy } from "./cachePrune";
 import { registerCoverProtocol, storeCover } from "./covers";
 import { resolve } from "./resolver";
@@ -246,6 +248,29 @@ async function selfTest() {
     log({ step: "dry-run", skipped: "no blank CD in a burner" });
   }
 
+  // 4c. Inserts from real songs → PDF: print covers via romix-cover://, booklet pages keep their own sizes.
+  {
+    const insertTracks = [];
+    for (const id of ids) {
+      const r = await resolve(id);
+      if (!r.ok) continue;
+      const hi = r.track.coverDataUrl ? await storeCover(r.track.coverDataUrl).catch(() => undefined) : undefined;
+      insertTracks.push({ title: r.track.title, artist: r.track.artist, durationSec: r.track.durationSec, cover: hi ?? "", coverHi: hi, color: "#334455", videoId: id });
+    }
+    const htmlOut = buildInsertsHtml({ title: "Romix self-test", tracks: insertTracks, front: "ring", format: "booklet", labelKind: "sheet", colorStrip: true, qr: true, labelRing: true, ruler: true, paper: "A4", volume: 1 });
+    const pdf = await renderInsertsPdf(htmlOut, "A4");
+    const exportsDir = join(paths.root, "exports");
+    await mkdir(exportsDir, { recursive: true });
+    await writeFile(join(exportsDir, "selftest-inserts.pdf"), pdf);
+    const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/g)].map((m) => `${Math.round((+m[1] * 25.4) / 72)}x${Math.round((+m[2] * 25.4) / 72)}mm`);
+    log({ step: "inserts-pdf", bytes: pdf.length, pages: boxes, coversStored: insertTracks.filter((t) => t.coverHi).length, file: join(exportsDir, "selftest-inserts.pdf") });
+    // Pictures of each front style with real covers (single format, page 1 only).
+    for (const front of ["collage", "ring", "cover"] as const) {
+      const one = buildInsertsHtml({ title: "Road Trip", subtitle: "Summer 2026", dedication: "For Mom", tracks: insertTracks, front, format: "single", labelKind: "sheet", colorStrip: true, qr: true, labelRing: true, ruler: true, paper: "A4", volume: 3 });
+      await writeFile(join(exportsDir, `selftest-${front}.png`), await renderInsertsPng(one, 210, 297 * 2));
+    }
+  }
+
   // 5. The sandboxed UI can see the bridge and stream disc audio with seeking (HTTP Range).
   const probe = new BrowserWindow({ show: false, webPreferences: webPreferences() });
   await probe.loadFile(join(here, "../dist/index.html"));
@@ -334,4 +359,8 @@ app.whenReady().then(() => {
     startDriveWatch();
   });
 });
-app.on("window-all-closed", () => app.quit());
+// Headless test modes open and close hidden windows (PDF rendering, UI probe); they exit explicitly.
+const headless = process.argv.includes("--selftest") || process.argv.includes("--burntest");
+app.on("window-all-closed", () => {
+  if (!headless) app.quit();
+});

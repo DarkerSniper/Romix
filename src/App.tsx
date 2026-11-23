@@ -58,6 +58,7 @@ const toSaved = (t: Track): SavedTrack => ({
   durationSec: t.durationSec,
   cover: t.cover,
   coverHi: t.coverHi,
+  coverPx: t.coverPx,
   color: t.color,
   source: t.source,
   videoId: t.videoId,
@@ -225,11 +226,11 @@ export default function App() {
     }
     if (!res.ok) return patch({ status: "error", error: res.message });
     const { track } = res;
-    let art: { cover: string; color: string; print?: string } = makeCover(track.title + track.artist);
+    let art: { cover: string; color: string; print?: string; printSize?: number } = makeCover(track.title + track.artist);
     if (track.coverDataUrl) art = await processCover(track.coverDataUrl).catch(() => art);
     // Keep a print-resolution copy as a file in Romix's folder (for sharp inserts).
     const coverHi = art.print ? await bridge.storeCover(art.print).catch(() => undefined) : undefined;
-    patch({ status: "ready", title: track.title, artist: track.artist, durationSec: track.durationSec, url: track.webpageUrl, cover: art.cover, coverHi, color: art.color, error: undefined });
+    patch({ status: "ready", title: track.title, artist: track.artist, durationSec: track.durationSec, url: track.webpageUrl, cover: art.cover, coverHi, coverPx: coverHi ? art.printSize : undefined, color: art.color, error: undefined });
   }, []);
 
   const addLinks = useCallback(

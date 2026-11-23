@@ -20,7 +20,7 @@
 - **Burn and check.** Writes the disc in one pass with Windows' own burning engine (gapless, or standard 2-second gaps), then reads every track back and compares it bit for bit. Pick the speed, burn several copies, erase CD-RWs.
 - **Make it fit.** Over 80 minutes? Trim silent intros and outros automatically, trim songs by hand on their waveform, or speed the disc up 2 % without changing pitch.
 - **Sort for flow.** Romix works out each song's tempo and key and can reorder the disc so it flows like a DJ set.
-- **Print the case.** Front cover, back tray card with the tracklist, and a round disc label at real CD sizes, as a PDF or straight to the printer.
+- **Print the case.** Front cover (collage, one cover or your own image, the Romix ring, a waveform of the whole disc, or type only), back tray card with tracklist, colour strip and a QR code to listen, and a disc label for label sheets or printable discs, with titles around the edge. Optional fold-out booklet, dedication and volume numbers. Real CD sizes with 3 mm bleed, cut marks and a size-check ruler, as a PDF or straight to the printer.
 - **Saved projects and a shelf.** Save discs to burn again later; every disc you burn lands on the Shelf.
 - **Run and go.** On first launch Romix downloads the free tools it needs (yt-dlp, FFmpeg, Node.js) into its own folder, verifies each one, and shows you what it's doing.
 - **Native look.** Clean macOS-style design, dark mode by default, with Light and Auto in Settings.
@@ -51,7 +51,7 @@ That gives the best possible CD from the source. It can't add back detail the so
 | 4 | Drive detection, burning (Windows IMAPI2, disc-at-once), burn speed, bit-exact verify, saved projects and copies | ✅ Built · real-disc test pending |
 | 5 | Printable inserts, shelf of past discs, trim to fit, mix-flow sorting, cache clean-up, installer and portable ZIP | ✅ Done |
 
-**Known limits:** CD-Text (titles on stereos) isn't supported by Windows' burning engine. Tempo and key detection is good on steady pop and dance music, less reliable on live, classical or tempo-changing songs, and sometimes picks the relative key (e.g. D major for B minor).
+**Known limits:** Cover sharpness depends on YouTube: music-video stills are at most 1280 × 720 (about 150 dpi on a 12 cm cover) and some videos only have 480 × 360. Romix warns when a cover will print soft. CD-Text (titles on stereos) isn't supported by Windows' burning engine. Tempo and key detection is good on steady pop and dance music, less reliable on live, classical or tempo-changing songs, and sometimes picks the relative key (e.g. D major for B minor).
 
 ## Install
 

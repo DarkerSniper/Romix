@@ -181,6 +181,8 @@ export interface SavedTrack {
   cover: string;
   /** Print-resolution cover (romix-cover:// URL). */
   coverHi?: string;
+  /** Pixel size of the print cover (a 12 cm cover wants ~1400 px). */
+  coverPx?: number;
   color: string;
   source: "youtube" | "local";
   videoId?: string;
