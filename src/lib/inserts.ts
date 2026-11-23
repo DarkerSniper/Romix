@@ -133,9 +133,11 @@ li .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .label { border-radius: 50%; border: 0.15mm solid #ccc }
 .label img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .9 }
 .label .hole { position: absolute; left: 50%; top: 50%; width: ${label.hole}mm; height: ${label.hole}mm; margin: -${label.hole / 2}mm 0 0 -${label.hole / 2}mm; border-radius: 50%; background: #fff; border: 0.15mm solid #ccc }
-.label .lt { position: absolute; left: 0; right: 0; top: 16mm; text-align: center; color: #fff; text-shadow: 0 0.3mm 1mm rgba(0,0,0,.6) }
-.label .lt b { display: block; font-size: 5mm; letter-spacing: -0.02em } .label .lt span { font-size: 2.8mm; opacity: .9 }
-.label .lb { position: absolute; left: 0; right: 0; bottom: 16mm; text-align: center; color: #fff; font-size: 2.6mm; text-shadow: 0 0.3mm 1mm rgba(0,0,0,.6) }
+/* Text sits on dark bands (like the front cover) so it reads on light and dark covers alike; the round label crops the band ends. */
+.label .lt { position: absolute; left: 0; right: 0; top: 13mm; padding: 2.6mm 22mm 2.8mm; text-align: center; color: #fff; background: rgba(0,0,0,.62) }
+.label .lt b { display: block; font-size: 5mm; letter-spacing: -0.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .label .lt span { display: block; font-size: 2.8mm; opacity: .85; margin-top: 0.6mm }
+.label .lb { position: absolute; left: 0; right: 0; bottom: 15mm; padding: 1.8mm 24mm; text-align: center; color: #fff; font-size: 2.6mm; background: rgba(0,0,0,.62) }
+.label.no-art { background: #f2f2f2 }
 </style></head><body>
 <div class="page">
   <div class="caption" style="left:${fx}mm;top:${fy - 7}mm">Front cover · cut on the marks</div>
@@ -155,7 +157,7 @@ li .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 </div>
 <div class="page">
   <div class="caption" style="left:${lx}mm;top:${ly - 7}mm">Disc label · for round CD label sheets or cutting</div>
-  <div class="piece label" style="left:${lx}mm;top:${ly}mm;width:${label.d}mm;height:${label.d}mm">
+  <div class="piece label${input.tracks[0]?.cover ? "" : " no-art"}" style="left:${lx}mm;top:${ly}mm;width:${label.d}mm;height:${label.d}mm">
     ${input.tracks[0]?.cover ? `<img src="${input.tracks[0].cover}" alt="">` : ""}
     <div class="lt"><b>${title}</b><span>${artist}</span></div>
     <div class="hole"></div>
