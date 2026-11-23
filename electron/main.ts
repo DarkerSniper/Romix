@@ -7,6 +7,10 @@ import { rm, mkdir } from "node:fs/promises";
 import type { BurnRequest, CacheInfo, DiscRequest, PrepSource, Project, UpdateResult } from "../src/shared/api";
 import { burn, cancelBurn, eject, endBurnSession, erase, layout, listDrives, onBurnProgress, startDriveWatch, toPcm } from "./burner";
 import { deleteProject, listProjects, loadProject, saveProject } from "./projects";
+import { analyze } from "./analyze";
+import { listShelf, removeFromShelf } from "./shelf";
+import { outputInserts } from "./insertsOut";
+import { pruneCache, setCachePolicy } from "./cachePrune";
 import { resolve } from "./resolver";
 import { run, YTDLP_BASE_ARGS, ytdlpEnv, ytdlpPath, ytdlpVersion } from "./tools";
 import { checkDeps, installMissing } from "./deps";
@@ -110,7 +114,11 @@ ipcMain.handle("romix:prepare", (_e, source: PrepSource) => {
   throw new Error("Unknown source");
 });
 ipcMain.on("romix:cancel-prep", (_e, key: unknown) => cancelPrep(String(key)));
-ipcMain.handle("romix:render", (_e, req: DiscRequest) => renderDisc(req));
+ipcMain.handle("romix:render", async (_e, req: DiscRequest) => {
+  const r = await renderDisc(req);
+  void pruneCache();
+  return r;
+});
 
 ipcMain.handle("romix:cache-info", () => cacheInfo());
 ipcMain.handle("romix:clear-cache", async () => {
@@ -138,6 +146,14 @@ ipcMain.on("romix:cancel-burn", () => cancelBurn());
 ipcMain.on("romix:end-burn-session", () => void endBurnSession());
 ipcMain.handle("romix:eject", (_e, driveId: unknown) => eject(String(driveId)));
 ipcMain.handle("romix:erase", (_e, driveId: unknown) => erase(String(driveId)));
+
+ipcMain.handle("romix:analyze", (_e, key: unknown) => analyze(String(key)));
+ipcMain.handle("romix:shelf", () => listShelf());
+ipcMain.handle("romix:shelf-remove", (_e, id: unknown) => removeFromShelf(String(id)));
+ipcMain.handle("romix:inserts", (_e, html: unknown, action: unknown, title: unknown, paper: unknown) =>
+  outputInserts(String(html), action === "print" ? "print" : "pdf", String(title), paper === "Letter" ? "Letter" : "A4", win),
+);
+ipcMain.on("romix:cache-policy", (_e, limitGB: unknown, keys: unknown) => setCachePolicy(Number(limitGB) || 5, Array.isArray(keys) ? keys.map(String) : []));
 
 ipcMain.handle("romix:projects", () => listProjects());
 ipcMain.handle("romix:project-load", (_e, id: unknown) => loadProject(String(id)));
@@ -182,6 +198,12 @@ async function selfTest() {
     await new Promise((r) => setTimeout(r, 300));
   }
   const ready = keys.filter((k) => statusOf(k)!.state === "ready");
+
+  // 3b. Tempo, key and silence on real songs.
+  for (const k of ready) {
+    const a = await analyze(k);
+    log({ step: "analyze", key: k, bpm: a?.bpm, key_: a?.key, camelot: a?.camelot, musicStart: a && +a.musicStartSec.toFixed(2), silenceAtEnd: a && +(a.durationSec - a.musicEndSec).toFixed(2), peaks: a?.peaks.length });
+  }
 
   // 4. Build the disc in every mode and report the layout.
   for (const options of [

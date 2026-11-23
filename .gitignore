@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-electron/
+release/
 
 # App data in development (settings, song cache, Chromium profile, temp, yt-dlp cache)
 .data/

@@ -84,6 +84,22 @@ const mockBridge: RomixBridge = {
   eject: async () => {},
   erase: async () => ({ ok: true }),
 
+  async analyze(key) {
+    // Deterministic fake analysis so the preview can show badges, trimming and sorting.
+    let h = 0;
+    for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const dur = 180 + (h % 180);
+    const peaks = Array.from({ length: 600 }, (_, i) => {
+      const edge = Math.min(1, i / 30, (600 - i) / 40);
+      return Math.round(Math.max(0, edge) * (0.35 + 0.5 * Math.abs(Math.sin(i / 9 + h))) * 1000) / 1000;
+    });
+    return { bpm: 80 + (h % 90), key: null, camelot: `${(h % 12) + 1}${h % 2 ? "A" : "B"}`, durationSec: dur, musicStartSec: 0.8 + (h % 4), musicEndSec: dur - 1 - (h % 6), peaks };
+  },
+  listShelf: async () => [],
+  removeFromShelf: async () => {},
+  outputInserts: async () => ({ ok: false, message: "Printing and PDFs work in the desktop app" }),
+  setCachePolicy: () => {},
+
   listProjects: async () => previewProjects().map(summarize),
   loadProject: async (id) => previewProjects().find((p) => p.id === id) ?? null,
   async saveProject(p) {

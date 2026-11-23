@@ -1,7 +1,7 @@
 import { Reorder, useDragControls, AnimatePresence } from "framer-motion";
-import { AlertCircle, GripVertical, X, Clock } from "lucide-react";
+import { AlertCircle, GripVertical, X, Clock, Scissors } from "lucide-react";
 import type { Track } from "../types";
-import type { PrepUpdate } from "../shared/api";
+import type { PrepUpdate, TrackAnalysis } from "../shared/api";
 import { formatTime } from "../lib/cd";
 
 interface TrackListProps {
@@ -13,9 +13,13 @@ interface TrackListProps {
   onHover: (id: string | null) => void;
   prep: Record<string, PrepUpdate>;
   playingId?: string | null;
+  analysis: Record<string, TrackAnalysis>;
+  onTrim: (id: string) => void;
+  /** Shown in the list header (e.g. Sort for flow). */
+  headerAction?: React.ReactNode;
 }
 
-export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onHover, prep, playingId }: TrackListProps) {
+export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onHover, prep, playingId, analysis, onTrim, headerAction }: TrackListProps) {
   if (tracks.length === 0) {
     return (
       <div className="list-empty">
@@ -30,7 +34,10 @@ export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onH
       <div className="list-head" aria-hidden="true">
         <span className="col-num">#</span>
         <span />
-        <span>Title</span>
+        <span className="col-title">
+          Title
+          {headerAction}
+        </span>
         <span className="col-time"><Clock size={12} /></span>
         <span />
       </div>
@@ -44,6 +51,8 @@ export function TrackList({ tracks, onReorder, onRemove, onRetry, hoveredId, onH
               hovered={hoveredId === t.id}
               playing={playingId === t.id}
               prep={t.sourceKey ? prep[t.sourceKey] : undefined}
+              analysis={t.sourceKey ? analysis[t.sourceKey] : undefined}
+              onTrim={onTrim}
               onHover={onHover}
               onRemove={onRemove}
               onRetry={onRetry}
@@ -64,11 +73,15 @@ interface RowProps {
   onRetry: (id: string) => void;
   prep?: PrepUpdate;
   playing: boolean;
+  analysis?: TrackAnalysis;
+  onTrim: (id: string) => void;
 }
 
 const PREP_LABEL: Record<string, string> = { queued: "Waiting to prepare", downloading: "Downloading", converting: "Converting to CD audio" };
 
-function TrackRow({ track: t, index, hovered, playing, prep, onHover, onRemove, onRetry }: RowProps) {
+function TrackRow({ track: t, index, hovered, playing, prep, analysis, onTrim, onHover, onRemove, onRetry }: RowProps) {
+  const trimmed = t.trimStartSec !== undefined || t.trimEndSec !== undefined;
+  const shownDuration = trimmed ? (t.trimEndSec ?? t.durationSec) - (t.trimStartSec ?? 0) : t.durationSec;
   const controls = useDragControls();
   const resolving = t.status === "resolving";
   const prepFailed = t.status === "ready" && prep?.state === "error";
@@ -137,7 +150,13 @@ function TrackRow({ track: t, index, hovered, playing, prep, onHover, onRemove, 
             <div className="track-title">{t.title}</div>
             <div className="track-artist">
               {t.source === "local" && <span className="source-tag">FILE</span>}
+              {trimmed && <span className="source-tag">TRIMMED</span>}
               {t.artist}
+              {analysis && !preparing && (analysis.bpm || analysis.camelot) && (
+                <span className="track-meta-tag" title={[analysis.bpm && `${Math.round(analysis.bpm)} BPM`, analysis.key].filter(Boolean).join(" · ")}>
+                  {analysis.bpm ? Math.round(analysis.bpm) : "–"} · {analysis.camelot ?? "–"}
+                </span>
+              )}
               {preparing && (
                 <span className="track-prep">
                   {" · "}
@@ -154,7 +173,16 @@ function TrackRow({ track: t, index, hovered, playing, prep, onHover, onRemove, 
           <div className="track-progress-fill" style={{ width: `${Math.round(prep!.progress * 100)}%` }} />
         </div>
       )}
-      <span className="track-time">{resolving || (failed && !prepFailed) ? "" : formatTime(t.durationSec)}</span>
+      <span className="track-time">
+        {!resolving && !(failed && !prepFailed) && (
+          <>
+            <button className="icon-btn track-trim" aria-label={`Trim ${t.title}`} title="Trim start and end" onClick={() => onTrim(t.id)} disabled={!analysis}>
+              <Scissors size={12} />
+            </button>
+            {formatTime(shownDuration)}
+          </>
+        )}
+      </span>
       <button className="icon-btn track-remove" aria-label={`Remove ${t.title || "song"}`} onClick={() => onRemove(t.id)}>
         <X size={13} />
       </button>

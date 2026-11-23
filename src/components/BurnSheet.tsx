@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, AlertCircle, Minus, Plus } from "lucide-react";
 import type { Track } from "../types";
-import type { BurnProgress, BurnResult, DiscRequest, DriveInfo } from "../shared/api";
+import type { BurnProgress, BurnRequest, BurnResult, DiscRequest, DriveInfo } from "../shared/api";
 import { Disc } from "./Disc";
 import { formatDiscTime, formatTime } from "../lib/cd";
 import { bridge } from "../lib/bridge";
@@ -15,6 +15,8 @@ interface BurnSheetProps {
   tracks: Track[];
   keys: string[];
   options: DiscRequest["options"];
+  trims: DiscRequest["trims"];
+  record: BurnRequest["record"];
   totalSec: number;
   title: string;
   prepProgress: number;
@@ -27,7 +29,7 @@ interface BurnSheetProps {
 
 const STEP_OF: Record<BurnProgress["phase"], number> = { build: 1, prepare: 2, burn: 2, finish: 2, verify: 3, erase: 0 };
 
-export function BurnSheet({ tracks, keys, options, totalSec, title, prepProgress, prepError, drives, prefs, onClose, onToast }: BurnSheetProps) {
+export function BurnSheet({ tracks, keys, options, trims, record, totalSec, title, prepProgress, prepError, drives, prefs, onClose, onToast }: BurnSheetProps) {
   const list = burners(drives);
   const [driveId, setDriveId] = useState<string | undefined>(list[0]?.id);
   const drive = list.find((d) => d.id === driveId) ?? list[0];
@@ -60,7 +62,7 @@ export function BurnSheet({ tracks, keys, options, totalSec, title, prepProgress
     setPhase("running");
     setProgress({ phase: "build", progress: 0 });
     const more = n < copies;
-    const r = await bridge.burn({ driveId: drive!.id, keys, options, speed, verify, eject: prefs.eject || more, keepForCopies: more });
+    const r = await bridge.burn({ driveId: drive!.id, keys, options, trims, record, speed, verify, eject: prefs.eject || more, keepForCopies: more });
     running.current = false;
     setResult(r);
     if (!r.ok) {

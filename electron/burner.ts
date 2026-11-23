@@ -9,6 +9,7 @@ import { wavDataRange } from "../src/lib/wav";
 import { paths } from "./paths";
 import { run } from "./tools";
 import { renderDisc } from "./render";
+import { recordBurn } from "./shelf";
 
 /* ---------- building the helper with Windows' own C# compiler ---------- */
 
@@ -185,7 +186,7 @@ export async function burn(req: BurnRequest): Promise<BurnResult> {
   const blocker = powerSaveBlocker.start("prevent-app-suspension");
   try {
     progress({ phase: "build", progress: 0 });
-    const rendered = await renderDisc({ keys: req.keys, options: req.options });
+    const rendered = await renderDisc({ keys: req.keys, options: req.options, trims: req.trims });
     if (!rendered.ok) return { ok: false, message: rendered.message };
     const pcm: string[] = [];
     for (let i = 0; i < rendered.tracks.length; i++) {
@@ -228,6 +229,7 @@ export async function burn(req: BurnRequest): Promise<BurnResult> {
     }
     if (req.eject) await request("eject", { drive: req.driveId }).catch(() => undefined);
     const speedX = burnResult.speed ? Math.round(burnResult.speed / 75) : undefined;
+    await recordBurn(req, verify, speedX).catch(() => undefined);
     return { ok: true, speedX, verify };
   } catch (e) {
     if (cancelled) return { ok: false, message: "The burn was stopped", cancelled: true };

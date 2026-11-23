@@ -1,7 +1,9 @@
 {
   "name": "romix",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.5.0",
+  "author": "DarkerSniper",
+  "homepage": "https://github.com/DarkerSniper/Romix",
   "description": "Turn YouTube music links into a burned audio CD, with a beautiful native-feeling UI.",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -14,7 +16,36 @@
     "test": "vitest run",
     "test:live": "node scripts/live-check.mjs",
     "test:burn": "node scripts/burn-test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dist": "node scripts/dist.mjs",
+    "icon": "electron scripts/make-icon.cjs"
+  },
+  "build": {
+    "appId": "com.darkersniper.romix",
+    "productName": "Romix",
+    "copyright": "Copyright © 2026 DarkerSniper",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["dist/**", "dist-electron/**", "package.json", "!node_modules/**"],
+    "extraResources": [{ "from": "electron/burner/RomixBurner.cs", "to": "burner/RomixBurner.cs" }],
+    "asar": true,
+    "npmRebuild": false,
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "zip", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "artifactName": "Romix-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Romix",
+      "artifactName": "Romix-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    }
   },
   "dependencies": {
     "framer-motion": "11.11.17",
@@ -28,6 +59,7 @@
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.3.3",
     "electron": "33.2.0",
+    "electron-builder": "25.1.8",
     "typescript": "5.6.3",
     "vite": "5.4.11",
     "vite-plugin-electron": "0.28.8",

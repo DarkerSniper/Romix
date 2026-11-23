@@ -73,7 +73,30 @@ export interface PrepUpdate {
 
 export interface DiscRequest {
   keys: string[];
-  options: { gapMode: "none" | "gap2" | "crossfade"; crossfadeSec: number; normalize: boolean };
+  options: { gapMode: "none" | "gap2" | "crossfade"; crossfadeSec: number; normalize: boolean; speedPct?: number };
+  /** Per-song trims (seconds into the song). Missing = untrimmed. */
+  trims?: Record<string, TrackTrim>;
+}
+
+export interface TrackTrim {
+  startSec: number;
+  endSec: number;
+}
+
+/* ---------- Milestone 5: analysis ---------- */
+
+export interface TrackAnalysis {
+  bpm: number | null;
+  /** "A minor" */
+  key: string | null;
+  /** DJ-style Camelot code, e.g. "8A" */
+  camelot: string | null;
+  durationSec: number;
+  /** Where the music actually starts and ends (silence excluded). */
+  musicStartSec: number;
+  musicEndSec: number;
+  /** Waveform peaks (0–1) for the trim editor. */
+  peaks: number[];
 }
 
 export interface RenderedTrack {
@@ -119,6 +142,9 @@ export interface BurnRequest {
   driveId: string;
   keys: string[];
   options: DiscRequest["options"];
+  trims?: DiscRequest["trims"];
+  /** What to record on the Shelf after a successful burn. */
+  record?: { title: string; tracks: SavedTrack[] };
   /** Sectors per second; 0 = the drive's fastest. */
   speed: number;
   verify: boolean;
@@ -158,6 +184,8 @@ export interface SavedTrack {
   videoId?: string;
   filePath?: string;
   url?: string;
+  trimStartSec?: number;
+  trimEndSec?: number;
 }
 
 export interface Project {
@@ -176,6 +204,21 @@ export interface ProjectSummary {
   durationSec: number;
   covers: string[];
 }
+
+export interface ShelfEntry {
+  id: string;
+  /** Identifies "the same disc" so repeat copies add to one entry. */
+  signature: string;
+  burnedAt: number;
+  title: string;
+  tracks: SavedTrack[];
+  options: DiscRequest["options"];
+  copies: number;
+  verified: "ok" | "issues" | "skipped";
+  speedX?: number;
+}
+
+export type InsertAction = "pdf" | "print";
 
 export interface CacheInfo {
   bytes: number;
@@ -212,6 +255,15 @@ export interface RomixBridge {
   endBurnSession(): void;
   eject(driveId: string): Promise<void>;
   erase(driveId: string): Promise<{ ok: boolean; message?: string }>;
+
+  /** Tempo, key, silence and waveform for a prepared song (cached). */
+  analyze(key: string): Promise<TrackAnalysis | null>;
+  listShelf(): Promise<ShelfEntry[]>;
+  removeFromShelf(id: string): Promise<void>;
+  /** Saves the inserts page as a PDF (file dialog) or prints it. */
+  outputInserts(html: string, action: InsertAction, title: string, paper: "A4" | "Letter"): Promise<{ ok: boolean; message: string; path?: string }>;
+  /** Cache size limit and the songs on the open disc (never pruned). */
+  setCachePolicy(limitGB: number, activeKeys: string[]): void;
 
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;

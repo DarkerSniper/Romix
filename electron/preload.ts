@@ -45,6 +45,12 @@ const bridge: RomixBridge = {
   eject: (driveId) => ipcRenderer.invoke("romix:eject", driveId),
   erase: (driveId) => ipcRenderer.invoke("romix:erase", driveId),
 
+  analyze: (key) => ipcRenderer.invoke("romix:analyze", key),
+  listShelf: () => ipcRenderer.invoke("romix:shelf"),
+  removeFromShelf: (id) => ipcRenderer.invoke("romix:shelf-remove", id),
+  outputInserts: (html, action, title, paper) => ipcRenderer.invoke("romix:inserts", html, action, title, paper),
+  setCachePolicy: (limitGB, keys) => ipcRenderer.send("romix:cache-policy", limitGB, keys),
+
   listProjects: () => ipcRenderer.invoke("romix:projects"),
   loadProject: (id) => ipcRenderer.invoke("romix:project-load", id),
   saveProject: (p) => ipcRenderer.invoke("romix:project-save", p),

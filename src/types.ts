@@ -20,6 +20,9 @@ export interface Track {
   sourceKey?: string;
   /** Local files: absolute path on disk (desktop only). */
   filePath?: string;
+  /** Trimmed range within the song, in seconds. */
+  trimStartSec?: number;
+  trimEndSec?: number;
 }
 
 export type GapMode = "none" | "gap2" | "crossfade";
@@ -28,6 +31,8 @@ export interface DiscOptions {
   gapMode: GapMode;
   crossfadeSec: number;
   normalize: boolean;
+  /** Optional slight speed-up to fit the disc (0–2 %, pitch kept). */
+  speedPct?: number;
 }
 
 export type Page = "disc" | "projects" | "shelf" | "inserts" | "settings";

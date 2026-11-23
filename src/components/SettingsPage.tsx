@@ -48,12 +48,14 @@ interface SettingsPageProps {
   onToast: (msg: string) => void;
   burnPrefs: BurnPrefs;
   setBurnPrefs: (patch: Partial<BurnPrefs>) => void;
+  cacheLimitGB: number;
+  setCacheLimitGB: (gb: number) => void;
 }
 
 const formatBytes = (b: number) =>
   b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : b > 0 ? `${Math.round(b / 1e3)} KB` : "Empty";
 
-export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs }: SettingsPageProps) {
+export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs, cacheLimitGB, setCacheLimitGB }: SettingsPageProps) {
   const [deps, setDeps] = useState<DepStatus[]>([]);
   const [cache, setCache] = useState<CacheInfo | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -194,6 +196,19 @@ export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs 
               {clearing ? "Clearing…" : "Clear"}
             </button>
           )}
+        </div>
+        <div className="settings-row settings-row-sep">
+          <div className="settings-text">
+            <div className="settings-label">Keep the cache under</div>
+            <div className="settings-hint">Older audio is removed automatically. Songs on the open disc and in saved projects are always kept.</div>
+          </div>
+          <select value={cacheLimitGB} onChange={(e) => setCacheLimitGB(Number(e.target.value))} aria-label="Cache size limit">
+            {[2, 5, 10, 20, 50].map((g) => (
+              <option key={g} value={g}>
+                {g} GB
+              </option>
+            ))}
+          </select>
         </div>
       </section>
 
