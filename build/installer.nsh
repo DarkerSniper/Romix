@@ -6,6 +6,19 @@
 ;   - uninstalling: ask whether to delete the data too (default: keep it);
 ;     a silent uninstall always keeps it.
 
+; electron-builder always copies the installer (~80 MB) to %LOCALAPPDATA%\<app>-updater
+; for its auto-updater. Romix doesn't use that updater and keeps nothing outside its
+; own folder, so remove the copy straight after installing.
+!macro customInstall
+  Delete "$LOCALAPPDATA\${APP_INSTALLER_STORE_FILE}"
+  RMDir "$LOCALAPPDATA\romix-updater"
+!macroend
+
+!macro customUnInstall
+  Delete "$LOCALAPPDATA\romix-updater\installer.exe"
+  RMDir "$LOCALAPPDATA\romix-updater"
+!macroend
+
 !macro customRemoveFiles
   ${ifNot} ${isUpdated}
     ${ifNot} ${Silent}
