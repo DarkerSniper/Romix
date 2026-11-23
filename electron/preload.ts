@@ -46,6 +46,7 @@ const bridge: RomixBridge = {
   erase: (driveId) => ipcRenderer.invoke("romix:erase", driveId),
 
   analyze: (key) => ipcRenderer.invoke("romix:analyze", key),
+  storeCover: (dataUrl) => ipcRenderer.invoke("romix:store-cover", dataUrl),
   listShelf: () => ipcRenderer.invoke("romix:shelf"),
   removeFromShelf: (id) => ipcRenderer.invoke("romix:shelf-remove", id),
   outputInserts: (html, action, title, paper) => ipcRenderer.invoke("romix:inserts", html, action, title, paper),

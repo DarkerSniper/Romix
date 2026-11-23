@@ -179,6 +179,8 @@ export interface SavedTrack {
   artist: string;
   durationSec: number;
   cover: string;
+  /** Print-resolution cover (romix-cover:// URL). */
+  coverHi?: string;
   color: string;
   source: "youtube" | "local";
   videoId?: string;
@@ -262,6 +264,8 @@ export interface RomixBridge {
   removeFromShelf(id: string): Promise<void>;
   /** Saves the inserts page as a PDF (file dialog) or prints it. */
   outputInserts(html: string, action: InsertAction, title: string, paper: "A4" | "Letter"): Promise<{ ok: boolean; message: string; path?: string }>;
+  /** Stores an image (print cover or your own cover) in the app folder; returns a romix-cover:// URL. */
+  storeCover(dataUrl: string): Promise<string>;
   /** Cache size limit and the songs on the open disc (never pruned). */
   setCachePolicy(limitGB: number, activeKeys: string[]): void;
 

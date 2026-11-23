@@ -24,13 +24,39 @@
     "appId": "com.darkersniper.romix",
     "productName": "Romix",
     "copyright": "Copyright © 2026 DarkerSniper",
-    "directories": { "output": "release", "buildResources": "build" },
-    "files": ["dist/**", "dist-electron/**", "package.json", "!node_modules/**"],
-    "extraResources": [{ "from": "electron/burner/RomixBurner.cs", "to": "burner/RomixBurner.cs" }],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json",
+      "!node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/burner/RomixBurner.cs",
+        "to": "burner/RomixBurner.cs"
+      }
+    ],
     "asar": true,
     "npmRebuild": false,
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "zip", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.png",
       "artifactName": "Romix-${version}-${arch}.${ext}"
     },
@@ -50,6 +76,7 @@
   "dependencies": {
     "framer-motion": "11.11.17",
     "lucide-react": "0.460.0",
+    "qrcode-generator": "1.4.4",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

@@ -101,18 +101,32 @@ async function fetchOnce(videoId: string): Promise<ResolveResult> {
   return { ok: true, track, cached: false };
 }
 
-/** Prefer square album art (YouTube Music), else the largest thumbnail. Returned as a data URL. */
+/** Google's image server can render album art larger than listed: ask for print size. */
+function upgraded(url: string): string | null {
+  return /googleusercontent\.com|ggpht\.com/.test(url) && /=w\d+-h\d+/.test(url) ? url.replace(/=w\d+-h\d+/, "=w1400-h1400") : null;
+}
+
+/**
+ * The largest cover available (for sharp printing): square album art first
+ * (upgraded to 1400 px where the server allows), else the largest thumbnail.
+ * Returned as a data URL; the UI squares it and keeps a print copy.
+ */
 async function fetchCover(info: YtdlpInfo): Promise<string | null> {
   const thumbs = (info.thumbnails ?? []).filter((t) => t.url?.startsWith("https://"));
   if (thumbs.length === 0) return null;
   const sized = thumbs.filter((t) => t.width && t.height);
   const square = sized.filter((t) => t.width === t.height && t.width! >= 200).sort((a, b) => b.width! - a.width!);
   const largest = [...sized].sort((a, b) => b.width! - a.width!);
-  const ordered = [square[0], largest[0], ...[...thumbs].sort((a, b) => (b.preference ?? 0) - (a.preference ?? 0))].filter(Boolean);
+  const urls = [
+    square[0] && upgraded(square[0].url),
+    square[0]?.url,
+    largest[0]?.url,
+    ...[...thumbs].sort((a, b) => (b.preference ?? 0) - (a.preference ?? 0)).map((t) => t.url),
+  ].filter(Boolean) as string[];
 
-  for (const t of ordered.slice(0, 4)) {
+  for (const url of [...new Set(urls)].slice(0, 5)) {
     try {
-      const res = await net.fetch(t!.url);
+      const res = await net.fetch(url);
       if (!res.ok) continue;
       const type = res.headers.get("content-type") ?? "image/jpeg";
       if (!type.startsWith("image/")) continue;

@@ -95,6 +95,7 @@ const mockBridge: RomixBridge = {
     });
     return { bpm: 80 + (h % 90), key: null, camelot: `${(h % 12) + 1}${h % 2 ? "A" : "B"}`, durationSec: dur, musicStartSec: 0.8 + (h % 4), musicEndSec: dur - 1 - (h % 6), peaks };
   },
+  storeCover: async (dataUrl) => dataUrl,
   listShelf: async () => [],
   removeFromShelf: async () => {},
   outputInserts: async () => ({ ok: false, message: "Printing and PDFs work in the desktop app" }),

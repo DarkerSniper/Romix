@@ -31,6 +31,8 @@ export const paths = {
   disc: join(dataRoot, "cache", "disc"),
   /** Saved discs (one JSON file each). Not a cache: never cleared automatically. */
   projects: join(dataRoot, "projects"),
+  /** Print-resolution covers (and your own cover images), referenced by saved discs. */
+  covers: join(dataRoot, "covers"),
 };
 
 /** Audio caches that "Clear cache" empties (song metadata cache is kept: it's tiny). */

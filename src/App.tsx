@@ -57,6 +57,7 @@ const toSaved = (t: Track): SavedTrack => ({
   artist: t.artist,
   durationSec: t.durationSec,
   cover: t.cover,
+  coverHi: t.coverHi,
   color: t.color,
   source: t.source,
   videoId: t.videoId,
@@ -224,9 +225,11 @@ export default function App() {
     }
     if (!res.ok) return patch({ status: "error", error: res.message });
     const { track } = res;
-    let art = makeCover(track.title + track.artist);
+    let art: { cover: string; color: string; print?: string } = makeCover(track.title + track.artist);
     if (track.coverDataUrl) art = await processCover(track.coverDataUrl).catch(() => art);
-    patch({ status: "ready", title: track.title, artist: track.artist, durationSec: track.durationSec, url: track.webpageUrl, cover: art.cover, color: art.color, error: undefined });
+    // Keep a print-resolution copy as a file in Romix's folder (for sharp inserts).
+    const coverHi = art.print ? await bridge.storeCover(art.print).catch(() => undefined) : undefined;
+    patch({ status: "ready", title: track.title, artist: track.artist, durationSec: track.durationSec, url: track.webpageUrl, cover: art.cover, coverHi, color: art.color, error: undefined });
   }, []);
 
   const addLinks = useCallback(
@@ -426,7 +429,7 @@ export default function App() {
             }}
           />
         ) : page === "inserts" ? (
-          <InsertsPage key={insertSource ?? "current"} current={{ title, tracks: ready.map(toSaved) }} initial={insertSource} onToast={setToast} />
+          <InsertsPage key={insertSource ?? "current"} current={{ title, tracks: ready.map(toSaved), keys: ready.map((t) => t.sourceKey) }} initial={insertSource} onToast={setToast} />
         ) : (
           <>
             <header className="header">

@@ -1,8 +1,10 @@
 /**
  * Squares a thumbnail (YouTube video thumbnails are 16:9) by centre-cropping,
- * and picks a representative colour for the disc slice tint.
+ * picks a representative colour for the disc slice tint, and keeps a large
+ * copy for printing (a 12 cm cover needs ~1400 px to print sharply).
  */
-const SIZE = 512;
+const UI_SIZE = 512;
+const PRINT_MAX = 1500;
 
 function load(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -14,23 +16,36 @@ function load(src: string): Promise<HTMLImageElement> {
 }
 
 export interface ProcessedCover {
+  /** 512 px, for the interface. */
   cover: string;
   color: string;
+  /** Square, as large as the source allows (up to 1500 px), for printing. */
+  print: string;
+  /** Pixel size of the print copy. */
+  printSize: number;
+}
+
+function square(img: HTMLImageElement, size: number): HTMLCanvasElement {
+  const side = Math.min(img.naturalWidth, img.naturalHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+  return canvas;
 }
 
 export async function processCover(dataUrl: string): Promise<ProcessedCover> {
   const img = await load(dataUrl);
-  const side = Math.min(img.naturalWidth, img.naturalHeight);
-  const sx = (img.naturalWidth - side) / 2;
-  const sy = (img.naturalHeight - side) / 2;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = SIZE;
-  const ctx = canvas.getContext("2d")!;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
-
-  return { cover: canvas.toDataURL("image/jpeg", 0.9), color: dominantColor(ctx) };
+  const ui = square(img, UI_SIZE);
+  const printSize = Math.min(PRINT_MAX, Math.min(img.naturalWidth, img.naturalHeight));
+  const print = square(img, printSize);
+  return {
+    cover: ui.toDataURL("image/jpeg", 0.9),
+    color: dominantColor(ui.getContext("2d")!),
+    print: print.toDataURL("image/jpeg", 0.93),
+    printSize,
+  };
 }
 
 /** Saturation-weighted average of a downsampled image, so a coloured subject beats a grey background. */

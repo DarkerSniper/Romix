@@ -3,7 +3,8 @@ import { join } from "node:path";
 import type { ResolvedTrack } from "../src/shared/api";
 import { paths } from "./paths";
 
-const VERSION = 1;
+// v2: covers are the largest available (for printing), so older entries are refetched.
+const VERSION = 2;
 const dir = () => paths.trackCache;
 const safeId = (id: string) => id.replace(/[^\w-]/g, "_");
 

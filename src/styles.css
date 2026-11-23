@@ -267,6 +267,18 @@ select:disabled { opacity: 0.5; }
 .inserts-preview { min-height: 0; overflow: auto; border-radius: 10px; background: var(--sidebar); padding: 16px; scrollbar-width: thin; }
 .inserts-preview iframe { border: 0; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); display: block; }
 
+.inserts-side { overflow: auto; padding-right: 6px; scrollbar-width: thin; }
+.inserts-side .settings-heading { margin: 14px 4px 6px; }
+.form-input { font: inherit; font-size: 13px; color: var(--label); background: var(--fill); border: 0; border-radius: 6px; height: 24px; padding: 0 8px; width: 200px; outline: none; }
+.form-input:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+.form-input::placeholder { color: var(--label-3); }
+.form-input.narrow { width: 64px; }
+.form-actions { display: inline-flex; align-items: center; gap: 10px; }
+.small-btn { height: 24px; min-width: 0; padding: 0 10px; font-size: 12px; }
+.form-label.is-disabled { color: var(--label-3); }
+.form-note.is-warning { color: var(--amber); }
+.inserts-actions { margin-bottom: 12px; }
+
 /* ---------- Shelf ---------- */
 .shelf { width: 100%; max-width: 980px; margin: 0 auto; overflow: auto; padding-bottom: 24px; }
 .shelf-row { margin-bottom: 28px; }

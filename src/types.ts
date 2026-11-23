@@ -8,6 +8,8 @@ export interface Track {
   durationSec: number;
   /** Image URL or data URI for the cover / thumbnail. */
   cover: string;
+  /** Print-resolution cover (romix-cover:// URL), when available. */
+  coverHi?: string;
   /** Dominant colour of the cover, used for tints and the ambient background. */
   color: string;
   source: TrackSource;

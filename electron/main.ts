@@ -11,6 +11,7 @@ import { analyze } from "./analyze";
 import { listShelf, removeFromShelf } from "./shelf";
 import { outputInserts } from "./insertsOut";
 import { pruneCache, setCachePolicy } from "./cachePrune";
+import { registerCoverProtocol, storeCover } from "./covers";
 import { resolve } from "./resolver";
 import { run, YTDLP_BASE_ARGS, ytdlpEnv, ytdlpPath, ytdlpVersion } from "./tools";
 import { checkDeps, installMissing } from "./deps";
@@ -28,6 +29,7 @@ const TITLEBAR = {
 // Streams the finished disc audio to the preview player. Must be registered before "ready".
 protocol.registerSchemesAsPrivileged([
   { scheme: "romix-audio", privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } },
+  { scheme: "romix-cover", privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 let win: BrowserWindow | null = null;
@@ -148,6 +150,7 @@ ipcMain.handle("romix:eject", (_e, driveId: unknown) => eject(String(driveId)));
 ipcMain.handle("romix:erase", (_e, driveId: unknown) => erase(String(driveId)));
 
 ipcMain.handle("romix:analyze", (_e, key: unknown) => analyze(String(key)));
+ipcMain.handle("romix:store-cover", (_e, dataUrl: unknown) => storeCover(String(dataUrl)));
 ipcMain.handle("romix:shelf", () => listShelf());
 ipcMain.handle("romix:shelf-remove", (_e, id: unknown) => removeFromShelf(String(id)));
 ipcMain.handle("romix:inserts", (_e, html: unknown, action: unknown, title: unknown, paper: unknown) =>
@@ -308,6 +311,7 @@ async function burnTest() {
 
 app.whenReady().then(() => {
   registerAudioProtocol();
+  registerCoverProtocol();
   if (process.argv.includes("--burntest")) {
     burnTest().catch((err) => {
       process.stderr.write(`burntest failed: ${err instanceof Error ? err.stack : String(err)}\n`);
