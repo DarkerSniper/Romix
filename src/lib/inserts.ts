@@ -46,8 +46,13 @@ export interface InsertInput {
   volume?: number | null;
   tracks: InsertTrack[];
   front: FrontStyle;
-  /** Your own image for the "cover" style (and the disc label). */
+  /**
+   * Your own image. Every front style uses it: one cover = full bleed, collage =
+   * first tile, ring = centre label, waveform/type = background.
+   */
   customCover?: string;
+  /** Also fill the disc label with your image (default: yes when you have one). */
+  customOnLabel?: boolean;
   format: "single" | "booklet";
   labelKind: "sheet" | "printable";
   colorStrip: boolean;
@@ -137,10 +142,11 @@ function sector(a0: number, a1: number, ro: number, ri: number): string {
   return `M${pt(ro, a0)} A${ro} ${ro} 0 ${large} 1 ${pt(ro, a0 + span)} L${pt(ri, a0 + span)} A${ri} ${ri} 0 ${large} 0 ${pt(ri, a0)}Z`;
 }
 
-/** Romix's disc visual: each song a slice of its cover, sized by length. */
-function ringArt(tracks: InsertTrack[]): string {
+/** Romix's disc visual: each song a slice of its cover, sized by length. Your image becomes the centre label. */
+function ringArt(tracks: InsertTrack[], centre?: string): string {
   const total = tracks.reduce((n, t) => n + t.durationSec, 0) || 1;
   const pad = tracks.length > 1 ? 0.012 : 0;
+  const ri = centre ? 25 : RI; // a bigger hub, like a record's label, when it carries your image
   let acc = 0;
   const defs: string[] = [];
   const slices: string[] = [];
@@ -150,13 +156,16 @@ function ringArt(tracks: InsertTrack[]): string {
     const a1 = (acc / total) * Math.PI * 2 - pad / 2;
     const mid = (a0 + a1) / 2, span = a1 - a0;
     const size = Math.min(R * 2.4, R * (0.95 + span / Math.PI));
-    const [cx, cy] = pt((R + RI) / 2, mid).split(" ").map(Number);
-    defs.push(`<clipPath id="s${i}"><path d="${sector(a0, a1, R, RI)}"/></clipPath>`);
+    const [cx, cy] = pt((R + ri) / 2, mid).split(" ").map(Number);
+    defs.push(`<clipPath id="s${i}"><path d="${sector(a0, a1, R, ri)}"/></clipPath>`);
     slices.push(
       `<g clip-path="url(#s${i})"><rect width="120" height="120" fill="${attr(t.color || "#444")}"/>${art(t) ? `<image href="${attr(art(t))}" x="${(cx - size / 2).toFixed(2)}" y="${(cy - size / 2).toFixed(2)}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" preserveAspectRatio="xMidYMid slice"/>` : ""}</g>`,
     );
   });
-  return `<svg class="ring" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet"><defs>${defs.join("")}</defs><circle cx="60" cy="60" r="${R + 1.2}" fill="#2a2a2c"/>${slices.join("")}<circle cx="60" cy="60" r="${RI - 0.6}" fill="#111"/><circle cx="60" cy="60" r="4.5" fill="#000" stroke="#333" stroke-width="0.3"/></svg>`;
+  const hub = centre
+    ? `<clipPath id="hub"><circle cx="60" cy="60" r="${ri - 0.8}"/></clipPath><circle cx="60" cy="60" r="${ri - 0.2}" fill="#111"/><image clip-path="url(#hub)" href="${attr(centre)}" x="${60 - ri}" y="${60 - ri}" width="${ri * 2}" height="${ri * 2}" preserveAspectRatio="xMidYMid slice"/>`
+    : `<circle cx="60" cy="60" r="${ri - 0.6}" fill="#111"/>`;
+  return `<svg class="ring" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet"><defs>${defs.join("")}</defs><circle cx="60" cy="60" r="${R + 1.2}" fill="#2a2a2c"/>${slices.join("")}${hub}<circle cx="60" cy="60" r="4.5" fill="#000" stroke="#333" stroke-width="0.3"/></svg>`;
 }
 
 function waveArt(levels: number[], ink: string): string {
@@ -174,23 +183,27 @@ function frontArt(input: InsertInput): string {
   const sub = esc(input.subtitle?.trim() || mainArtist(input.tracks));
   const vol = esc(volumeLabel(input.volume));
   const band = `<div class="band"><div class="band-title">${title}</div><div class="band-sub">${sub}${vol ? ` · ${vol}` : ""}</div></div>`;
-  const covers = input.tracks.map(art).filter(Boolean);
+  const own = input.customCover;
+  const covers = [...(own ? [own] : []), ...input.tracks.map(art).filter(Boolean)];
   const first = input.tracks[0];
+  // Your image as a background, with a dark wash so text and the waveform stay readable.
+  const ownBackground = own ? `<div class="bleed"><img src="${attr(own)}" alt=""></div><div class="bleed scrim"></div>` : "";
 
   if (input.front === "type" || (input.front === "wave" && !input.waveform?.length)) {
     const bg = first?.color ?? "#1c1c1e";
-    return `<div class="bleed" style="background:${attr(bg)}"></div><div class="type" style="color:${inkOn(bg)}">${vol ? `<div class="type-vol">${vol}</div>` : ""}<div class="type-title">${title}</div><div class="type-sub">${sub}</div></div>`;
+    const ink = own ? "#fff" : inkOn(bg);
+    return `${own ? ownBackground : `<div class="bleed" style="background:${attr(bg)}"></div>`}<div class="type" style="color:${ink}">${vol ? `<div class="type-vol">${vol}</div>` : ""}<div class="type-title">${title}</div><div class="type-sub">${sub}</div></div>`;
   }
   if (input.front === "wave") {
     const bg = first?.color ?? "#1c1c1e";
-    const ink = inkOn(bg);
-    return `<div class="bleed" style="background:${attr(bg)}"></div>${waveArt(input.waveform!, ink)}<div class="wave-text" style="color:${ink}"><div class="type-title small">${title}</div><div class="type-sub">${sub}</div></div>${vol ? `<div class="corner-vol" style="color:${ink}">${vol}</div>` : ""}`;
+    const ink = own ? "#fff" : inkOn(bg);
+    return `${own ? ownBackground : `<div class="bleed" style="background:${attr(bg)}"></div>`}${waveArt(input.waveform!, ink)}<div class="wave-text" style="color:${ink}"><div class="type-title small">${title}</div><div class="type-sub">${sub}</div></div>${vol ? `<div class="corner-vol" style="color:${ink}">${vol}</div>` : ""}`;
   }
   if (input.front === "ring") {
-    return `<div class="bleed" style="background:#111"></div><div class="ring-wrap">${ringArt(input.tracks)}</div>${band}`;
+    return `<div class="bleed" style="background:#111"></div><div class="ring-wrap">${ringArt(input.tracks, own)}</div>${band}`;
   }
   if (input.front === "cover" || covers.length < 4) {
-    const src = (input.front === "cover" && input.customCover) || covers[0] || "";
+    const src = covers[0] || "";
     return `<div class="bleed">${src ? `<img src="${attr(src)}" alt="">` : ""}</div>${band}`;
   }
   return `<div class="bleed grid">${covers.slice(0, 4).map((c) => `<img src="${attr(c)}" alt="">`).join("")}</div>${band}`;
@@ -231,7 +244,7 @@ function backCard(input: InsertInput): string {
 function labelPiece(input: InsertInput): string {
   const d = SIZES.label.d;
   const hole = SIZES.label.hole[input.labelKind];
-  const src = (input.front === "cover" && input.customCover) || art(input.tracks[0]);
+  const src = (input.customCover && input.customOnLabel !== false ? input.customCover : "") || art(input.tracks[0]);
   const title = esc(input.title);
   const sub = esc(input.subtitle?.trim() || mainArtist(input.tracks));
   const total = input.tracks.reduce((n, t) => n + t.durationSec, 0);
@@ -357,6 +370,7 @@ html, body { background: #fff; color: #111; font-family: "SF Pro Text", -apple-s
 .bleed { position: absolute; inset: -${bleed}mm; overflow: hidden }
 .bleed img { width: 100%; height: 100%; object-fit: cover; display: block }
 .bleed.grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr }
+.bleed.scrim { background: rgba(0,0,0,.45) }
 .front, .panel.front { overflow: visible }
 .band { position: absolute; left: -${bleed}mm; right: -${bleed}mm; bottom: -${bleed}mm; padding: 5mm ${SIZES.safe + bleed}mm ${5 + bleed}mm; background: rgba(0,0,0,.62); color: #fff }
 .band-title { font-size: 6mm; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1 }

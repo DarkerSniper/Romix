@@ -70,6 +70,24 @@ describe("content", () => {
     expect(html({ front: "cover", customCover: "romix-cover://c/" + "b".repeat(32) + ".png" })).toContain("b".repeat(32));
   });
 
+  it("your own image works in every design, and on the label unless turned off", () => {
+    const mine = `romix-cover://c/${"c".repeat(32)}.jpg`;
+    const front = (h: string) => h.slice(h.indexOf('class="piece front"'), h.indexOf('class="piece back"'));
+    // collage: first tile; cover: full bleed; ring: centre label; wave/type: background with a dark wash
+    expect(front(html({ front: "collage", customCover: mine })).indexOf(mine)).toBeLessThan(front(html({ front: "collage", customCover: mine })).indexOf("romix-cover://c/aaa"));
+    expect(front(html({ front: "cover", customCover: mine }))).toContain(mine);
+    expect(front(html({ front: "ring", customCover: mine }))).toContain('clip-path="url(#hub)"');
+    expect(front(html({ front: "ring" }))).not.toContain("#hub");
+    for (const f of ["wave", "type"] as const) {
+      const h = front(html({ front: f, customCover: mine, waveform: [0.5, 0.7] }));
+      expect(h).toContain(mine);
+      expect(h).toContain("bleed scrim");
+    }
+    const label = (h: string) => h.slice(h.indexOf('class="piece label'));
+    expect(label(html({ customCover: mine }))).toContain(mine);
+    expect(label(html({ customCover: mine, customOnLabel: false }))).not.toContain(mine);
+  });
+
   it("QR code only when asked and when there are YouTube songs", () => {
     expect(html()).not.toContain('class="qr"');
     expect(html({ qr: true })).toContain('class="qr"');

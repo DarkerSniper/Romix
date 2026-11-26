@@ -101,6 +101,11 @@ const mockBridge: RomixBridge = {
   outputInserts: async () => ({ ok: false, message: "Printing and PDFs work in the desktop app" }),
   setCachePolicy: () => {},
 
+  shareInfo: async (tracks) => ({ youtubeSongs: tracks.filter((t) => t.videoId).length, localSongs: tracks.filter((t) => t.source === "local").length, localBytes: 0, missingLocal: 0 }),
+  exportDisc: async () => ({ ok: false, message: "Sharing works in the desktop app" }),
+  importDisc: async () => ({ ok: false, message: "Opening shared discs works in the desktop app" }),
+  onDiscImported: () => () => {},
+
   listProjects: async () => previewProjects().map(summarize),
   loadProject: async (id) => previewProjects().find((p) => p.id === id) ?? null,
   async saveProject(p) {

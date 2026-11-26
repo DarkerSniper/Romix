@@ -33,6 +33,8 @@ export const paths = {
   projects: join(dataRoot, "projects"),
   /** Print-resolution covers (and your own cover images), referenced by saved discs. */
   covers: join(dataRoot, "covers"),
+  /** Audio files that arrived inside shared discs (.romix) from other people. */
+  sharedAudio: join(dataRoot, "shared-audio"),
 };
 
 /** Audio caches that "Clear cache" empties (song metadata cache is kept: it's tiny). */

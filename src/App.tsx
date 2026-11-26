@@ -18,7 +18,8 @@ import { useTheme } from "./lib/theme";
 import { usePlayer } from "./lib/player";
 import { Transport } from "./components/Transport";
 import { SetupSheet, useDeps } from "./components/SetupSheet";
-import type { PrepSource, PrepUpdate, SavedTrack, ShelfEntry, TrackAnalysis, TrackTrim } from "./shared/api";
+import type { ImportResult, PrepSource, PrepUpdate, SavedTrack, ShareData, ShelfEntry, TrackAnalysis, TrackTrim } from "./shared/api";
+import { ShareSheet } from "./components/ShareSheet";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { ShelfPage } from "./components/ShelfPage";
 import { InsertsPage } from "./components/InsertsPage";
@@ -272,6 +273,12 @@ export default function App() {
 
   const addFiles = useCallback(
     async (files: FileList) => {
+      // A shared disc dropped onto the window is opened, not added as a song.
+      const discs = [...files].filter((f) => f.name.toLowerCase().endsWith(".romix"));
+      if (discs.length) {
+        for (const f of discs) handleImportRef.current(await bridge.importDisc(bridge.pathForFile(f)));
+        return;
+      }
       const audio = [...files].filter((f) => f.type.startsWith("audio/") || /\.(mp3|flac|wav|m4a|ogg|opus|aac)$/i.test(f.name));
       if (audio.length === 0) return setToast("Only audio files can go on the disc");
       for (const f of audio) {
@@ -361,6 +368,33 @@ export default function App() {
     [loadDisc, setToast],
   );
 
+  /* ---------- sharing ---------- */
+
+  const [shareData, setShareData] = useState<ShareData | null>(null);
+  const [projectsRefresh, setProjectsRefresh] = useState(0);
+
+  const shareProject = async (id: string) => {
+    const p = await bridge.loadProject(id);
+    if (p) setShareData({ title: p.title, options: p.options, tracks: p.tracks });
+  };
+
+  const handleImport = (r: ImportResult) => {
+    if (!r.ok) {
+      if (r.message !== "No file chosen") setToast(r.message);
+      return;
+    }
+    setProjectsRefresh((n) => n + 1);
+    const note = r.missingLocal ? ` (${r.missingLocal} of the sender's own songs weren't included)` : "";
+    // Open it straight away when nothing is being worked on; otherwise offer to.
+    if (tracks.length === 0) {
+      void openProject(r.projectId);
+      setToast(`Opened “${r.title}”${note}`);
+    } else setToast(`Added “${r.title}” to Saved projects${note}`, { label: "Open", run: () => void openProject(r.projectId) });
+  };
+  const handleImportRef = useRef(handleImport);
+  handleImportRef.current = handleImport;
+  useEffect(() => bridge.onDiscImported((r) => handleImportRef.current(r)), []);
+
   const openShelf = (e: ShelfEntry, burnNow: boolean) => {
     loadDisc({ title: e.title, options: e.options, tracks: e.tracks }, null);
     if (burnNow) setBurning(true);
@@ -419,7 +453,14 @@ export default function App() {
             setCacheLimitGB={setCacheLimit}
           />
         ) : page === "projects" ? (
-          <ProjectsPage currentId={projectId} hasWork={tracks.length > 0} onOpen={(id) => void openProject(id)} />
+          <ProjectsPage
+            currentId={projectId}
+            hasWork={tracks.length > 0}
+            onOpen={(id) => void openProject(id)}
+            onShare={(id) => void shareProject(id)}
+            onImport={async () => handleImport(await bridge.importDisc())}
+            refreshKey={projectsRefresh}
+          />
         ) : page === "shelf" ? (
           <ShelfPage
             onBurnAgain={(e) => openShelf(e, true)}
@@ -434,9 +475,18 @@ export default function App() {
         ) : (
           <>
             <header className="header">
-              <button className="btn header-save" onClick={() => void saveProject()} title="Save this disc (Ctrl+S)">
-                {projectId ? "Save" : "Save disc"}
-              </button>
+              <div className="header-actions">
+                <button
+                  className="btn header-save"
+                  onClick={() => (ready.length ? setShareData({ title, options, tracks: ready.map(toSaved) }) : setToast("Add some songs before sharing"))}
+                  title="Share this disc with someone who has Romix"
+                >
+                  Share
+                </button>
+                <button className="btn header-save" onClick={() => void saveProject()} title="Save this disc (Ctrl+S)">
+                  {projectId ? "Save" : "Save disc"}
+                </button>
+              </div>
               <div>
                 <p className="eyebrow">Audio CD</p>
                 <input className="title-input" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Disc title" />
@@ -570,6 +620,8 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>{shareData && <ShareSheet data={shareData} onClose={() => setShareData(null)} onToast={setToast} />}</AnimatePresence>
 
       <AnimatePresence>{isDesktop && setup.deps.length > 0 && !setup.ready && <SetupSheet deps={setup.deps} onRetry={setup.retry} />}</AnimatePresence>
 

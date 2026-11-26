@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import { CoverEditor, type CoverCrop } from "./CoverEditor";
 import type { ProjectSummary, SavedTrack, ShelfEntry } from "../shared/api";
 import { bridge, isDesktop } from "../lib/bridge";
 import { buildInsertsHtml, insertPages, listenUrl, mainArtist, PAPER, type FrontStyle, type Paper } from "../lib/inserts";
@@ -71,6 +73,10 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
   const [labelRing, setLabelRing] = useState(false);
   const [ruler, setRuler] = useState(true);
   const [customCover, setCustomCover] = useState<string | undefined>();
+  const [customOriginal, setCustomOriginal] = useState<string | undefined>();
+  const [customCrop, setCustomCrop] = useState<CoverCrop | undefined>();
+  const [customOnLabel, setCustomOnLabel] = useState(true);
+  const [editing, setEditing] = useState(false);
   const [waveform, setWaveform] = useState<number[] | undefined>();
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -122,6 +128,7 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
     tracks: source.tracks.map((t) => ({ title: t.title, artist: t.artist, durationSec: t.durationSec, cover: t.cover, coverHi: t.coverHi, color: t.color, videoId: t.videoId })),
     front,
     customCover,
+    customOnLabel,
     format,
     labelKind,
     colorStrip,
@@ -147,19 +154,31 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
     onToast(r.message);
   };
 
+  /** Keeps your original (for re-editing) in Romix's folder, then opens the editor. */
   const pickImage = (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return onToast("Choose an image file");
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return onToast("Choose a JPG, PNG or WebP image");
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        setCustomCover(await bridge.storeCover(String(reader.result)));
-        setFront("cover");
+        setCustomOriginal(await bridge.storeCover(String(reader.result)));
+        setCustomCrop(undefined);
+        setEditing(true);
       } catch (e) {
         onToast(e instanceof Error ? e.message : "Couldn't use that image");
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const applyCrop = async (r: { dataUrl: string; crop: CoverCrop }) => {
+    try {
+      setCustomCover(await bridge.storeCover(r.dataUrl));
+      setCustomCrop(r.crop);
+      setEditing(false);
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : "Couldn't save the image");
+    }
   };
 
   const pages = insertPages({ format, paper });
@@ -227,22 +246,40 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
               ))}
             </select>
           </div>
-          {front === "cover" && (
-            <div className="form-row">
-              <span className="form-label">Image</span>
-              <span className="form-actions">
-                {customCover && (
-                  <button className="link-btn muted" onClick={() => setCustomCover(undefined)}>
-                    Use song cover
+          <div className="form-row">
+            <span className="form-label">
+              Your image
+              <span className="design-hint">{customCover ? DESIGN_USE[front] : "Optional: your own photo or artwork, for any design"}</span>
+            </span>
+            <span className="form-actions">
+              {customCover ? (
+                <>
+                  <img className="cover-thumb" src={customCover} alt="" />
+                  <button className="link-btn" onClick={() => setEditing(true)}>
+                    Edit…
                   </button>
-                )}
+                  <button className="link-btn muted" onClick={() => setCustomCover(undefined)}>
+                    Remove
+                  </button>
+                </>
+              ) : (
                 <button className="btn small-btn" onClick={() => fileInput.current?.click()}>
-                  {customCover ? "Change…" : "Your image…"}
+                  Add image…
                 </button>
-                <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => pickImage(e.target.files?.[0])} />
-              </span>
-            </div>
-          )}
+              )}
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                hidden
+                onChange={(e) => {
+                  pickImage(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </span>
+          </div>
+          {customCover && toggle("Use my image on the disc label", customOnLabel, setCustomOnLabel)}
           <div className="form-row">
             <span className="form-label">Format</span>
             {seg(format, setFormat, [["single", "Single cover"], ["booklet", "Fold-out booklet"]], "Front format")}
@@ -298,7 +335,7 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
           {toggle("Size check ruler", ruler, setRuler, "A 10 cm line to check the printer didn't scale the page")}
         </div>
 
-        {softCovers > 0 && !customCover && (
+        {softCovers > 0 && !(customCover && front === "cover") && (
           <p className="form-note is-warning">
             {softCovers} of {source.tracks.length} covers will print a little soft at CD size
             {sharpest > 0 ? ` (music-video stills top out around ${Math.round(sharpest / (120 / 25.4))} dpi; album art is sharper)` : ""}. For a crisp front, use One cover with your own image, or Ring, where each cover is shown smaller.
@@ -319,9 +356,22 @@ export function InsertsPage({ current, initial, onToast }: InsertsPageProps) {
       </div>
 
       <Preview html={html} widthMm={Math.max(...pages.map((p) => p.w))} heightMm={pages.reduce((n, p) => n + p.h, 0)} />
+
+      <AnimatePresence>
+        {editing && customOriginal && <CoverEditor src={customOriginal} initial={customCrop} onApply={(r) => void applyCrop(r)} onClose={() => setEditing(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
+
+/** How each front design uses your image. */
+const DESIGN_USE: Record<FrontStyle, string> = {
+  collage: "Collage: the first of the four tiles",
+  cover: "One cover: fills the whole front",
+  ring: "Ring: the round centre label",
+  wave: "Waveform: the background, darkened",
+  type: "Type only: the background, darkened",
+};
 
 const PX_PER_MM = 96 / 25.4;
 

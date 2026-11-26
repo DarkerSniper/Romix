@@ -40,6 +40,14 @@
         "to": "burner/RomixBurner.cs"
       }
     ],
+    "fileAssociations": [
+      {
+        "ext": "romix",
+        "name": "Romix disc",
+        "description": "Romix shared disc",
+        "role": "Editor"
+      }
+    ],
     "asar": true,
     "npmRebuild": false,
     "win": {

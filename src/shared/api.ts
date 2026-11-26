@@ -224,6 +224,27 @@ export interface ShelfEntry {
 
 export type InsertAction = "pdf" | "print";
 
+/* ---------- Sharing discs (.romix files) ---------- */
+
+export interface ShareData {
+  title: string;
+  options: DiscRequest["options"];
+  tracks: SavedTrack[];
+}
+
+export interface ShareInfo {
+  youtubeSongs: number;
+  /** Your own audio files that can be included, and their total size. */
+  localSongs: number;
+  localBytes: number;
+  /** Own songs whose files can't be found any more. */
+  missingLocal: number;
+}
+
+export type ImportResult =
+  | { ok: true; projectId: string; title: string; songs: number; missingLocal: number }
+  | { ok: false; message: string };
+
 export interface CacheInfo {
   bytes: number;
   files: number;
@@ -270,6 +291,14 @@ export interface RomixBridge {
   storeCover(dataUrl: string): Promise<string>;
   /** Cache size limit and the songs on the open disc (never pruned). */
   setCachePolicy(limitGB: number, activeKeys: string[]): void;
+
+  shareInfo(tracks: SavedTrack[]): Promise<ShareInfo>;
+  /** Saves the disc as a .romix file (file dialog). */
+  exportDisc(data: ShareData, includeAudio: boolean): Promise<{ ok: boolean; message: string; path?: string }>;
+  /** Opens a .romix file (asks for one when no path is given) and adds it to Saved projects. */
+  importDisc(path?: string): Promise<ImportResult>;
+  /** A .romix file was opened from outside the app (double-click). */
+  onDiscImported(cb: (r: ImportResult) => void): () => void;
 
   listProjects(): Promise<ProjectSummary[]>;
   loadProject(id: string): Promise<Project | null>;

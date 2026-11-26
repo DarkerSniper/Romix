@@ -22,6 +22,8 @@
 - **Sort for flow.** Romix works out each song's tempo and key and can reorder the disc so it flows like a DJ set.
 - **Print the case.** Front cover (collage, one cover or your own image, the Romix ring, a waveform of the whole disc, or type only), back tray card with tracklist, colour strip and a QR code to listen, and a disc label for label sheets or printable discs, with titles around the edge. Optional fold-out booklet, dedication and volume numbers. Real CD sizes with 3 mm bleed, cut marks and a size-check ruler, as a PDF or straight to the printer.
 - **Saved projects and a shelf.** Save discs to burn again later; every disc you burn lands on the Shelf.
+- **Share a disc.** Save it as one `.romix` file (songs, order, trims, settings and covers, and optionally your own audio files) and send it to anyone with Romix: they double-click it or drag it into the window. Or copy a plain list of the YouTube links. Shared files are checked part by part before opening and only ever contain songs, settings, pictures and audio.
+- **Your own cover image.** Add a photo or artwork, frame it (drag, zoom, rotate, with a print-resolution check) and use it in any cover design: full bleed, a collage tile, the ring's centre label, or behind the waveform or title, and on the disc label.
 - **Run and go.** On first launch Romix downloads the free tools it needs (yt-dlp, FFmpeg, Node.js) into its own folder, verifies each one, and shows you what it's doing.
 - **Native look.** Clean macOS-style design, dark mode by default, with Light and Auto in Settings.
 

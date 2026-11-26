@@ -17,6 +17,11 @@
 !macro customUnInstall
   Delete "$LOCALAPPDATA\romix-updater\installer.exe"
   RMDir "$LOCALAPPDATA\romix-updater"
+  ; electron-builder removes the "Romix disc" file type but leaves an empty .romix key behind;
+  ; remove it too unless another program has claimed .romix since.
+  ReadRegStr $0 HKCU "Software\Classes\.romix" ""
+  StrCmp $0 "" 0 +2
+    DeleteRegKey HKCU "Software\Classes\.romix"
 !macroend
 
 !macro customRemoveFiles

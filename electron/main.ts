@@ -14,6 +14,11 @@ import { buildInsertsHtml } from "../src/lib/inserts";
 import { writeFile } from "node:fs/promises";
 import { pruneCache, setCachePolicy } from "./cachePrune";
 import { registerCoverProtocol, storeCover } from "./covers";
+import { buildDiscFile, exportDisc, importDisc, pickDiscFile, shareInfo, writeParts } from "./share";
+import { coverFile } from "./covers";
+import { readFile } from "node:fs/promises";
+import { ffmpegPath } from "./tools";
+import type { SavedTrack, ShareData } from "../src/shared/api";
 import { resolve } from "./resolver";
 import { run, YTDLP_BASE_ARGS, ytdlpEnv, ytdlpPath, ytdlpVersion } from "./tools";
 import { checkDeps, installMissing } from "./deps";
@@ -160,6 +165,13 @@ ipcMain.handle("romix:inserts", (_e, html: unknown, action: unknown, title: unkn
 );
 ipcMain.on("romix:cache-policy", (_e, limitGB: unknown, keys: unknown) => setCachePolicy(Number(limitGB) || 5, Array.isArray(keys) ? keys.map(String) : []));
 
+ipcMain.handle("romix:share-info", (_e, tracks: SavedTrack[]) => shareInfo(Array.isArray(tracks) ? tracks : []));
+ipcMain.handle("romix:export-disc", (_e, data: ShareData, includeAudio: unknown) => exportDisc(data, includeAudio === true, win));
+ipcMain.handle("romix:import-disc", async (_e, path: unknown) => {
+  const file = typeof path === "string" && path ? path : await pickDiscFile(win);
+  return file ? importDisc(file) : { ok: false, message: "No file chosen" };
+});
+
 ipcMain.handle("romix:projects", () => listProjects());
 ipcMain.handle("romix:project-load", (_e, id: unknown) => loadProject(String(id)));
 ipcMain.handle("romix:project-save", (_e, p: Omit<Project, "updatedAt">) => saveProject(p));
@@ -271,6 +283,50 @@ async function selfTest() {
     }
   }
 
+  // 4d. Sharing: build a .romix from real songs (+ one "own" audio file), import it, compare; then tamper and expect a refusal.
+  {
+    const own = join(paths.temp, "selftest-own.mp3");
+    await run(ffmpegPath(), ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-c:a", "libmp3lame", own], { timeoutMs: 60_000 });
+    const shared: SavedTrack[] = [];
+    for (const id of ids) {
+      const r = await resolve(id);
+      if (!r.ok) continue;
+      const hi = r.track.coverDataUrl ? await storeCover(r.track.coverDataUrl).catch(() => undefined) : undefined;
+      shared.push({ title: r.track.title, artist: r.track.artist, durationSec: r.track.durationSec, cover: r.track.coverDataUrl ?? "", coverHi: hi, color: "#334455", source: "youtube", videoId: id, trimStartSec: 2, trimEndSec: r.track.durationSec - 3 });
+    }
+    shared.push({ title: "My own demo", artist: "Me", durationSec: 6, cover: "", color: "#225577", source: "local", filePath: own });
+    const options = { gapMode: "crossfade" as const, crossfadeSec: 4, normalize: true, speedPct: 0 };
+    const built = await buildDiscFile({ title: "Shared self-test", options, tracks: shared }, true);
+    if (!built.ok) throw new Error(built.message);
+    const file = join(paths.root, "exports", "selftest.romix");
+    await writeParts(file, built.parts);
+    const imported = await importDisc(file);
+    const proj = imported.ok ? await loadProject(imported.projectId) : null;
+    const ownBack = proj?.tracks.find((t) => t.source === "local");
+    const same = (a: Buffer, b: Buffer) => a.length === b.length && a.equals(b);
+    const checks = {
+      imported: imported.ok,
+      songs: `${proj?.tracks.length}/${shared.length}`,
+      orderKept: proj?.tracks.map((t) => t.title).join("|") === shared.map((t) => t.title).join("|"),
+      optionsKept: JSON.stringify(proj?.options) === JSON.stringify(options),
+      trimsKept: proj?.tracks[0]?.trimStartSec === 2,
+      printCoversRestored: proj?.tracks.filter((t) => t.coverHi && coverFile(t.coverHi) && existsSync(coverFile(t.coverHi)!)).length,
+      ownAudioIdentical: Boolean(ownBack?.filePath && same(await readFile(ownBack.filePath), await readFile(own))),
+      ownAudioInsideAppFolder: Boolean(ownBack?.filePath?.startsWith(paths.sharedAudio)),
+    };
+    // Tamper: flip one byte in the last part (the audio) and expect a clear refusal.
+    const bytes = await readFile(file);
+    bytes[bytes.length - 100] ^= 0xff;
+    const tampered = join(paths.root, "exports", "selftest-tampered.romix");
+    await writeFile(tampered, bytes);
+    const bad = await importDisc(tampered);
+    const notRomix = join(paths.root, "exports", "selftest-fake.romix");
+    await writeFile(notRomix, Buffer.from("MZ this is really an exe"));
+    const fake = await importDisc(notRomix);
+    if (imported.ok) await deleteProject(imported.projectId);
+    log({ step: "share", bytes: bytes.length, ...checks, tamperedRefused: !bad.ok && bad.message, fakeRefused: !fake.ok && fake.message });
+  }
+
   // 5. The sandboxed UI can see the bridge and stream disc audio with seeking (HTTP Range).
   const probe = new BrowserWindow({ show: false, webPreferences: webPreferences() });
   await probe.loadFile(join(here, "../dist/index.html"));
@@ -352,6 +408,9 @@ app.whenReady().then(() => {
     return;
   }
   createWindow();
+  // Opened by double-clicking a .romix file: import it once the window is ready.
+  const startFile = discFileArg(process.argv);
+  if (startFile) win!.webContents.once("did-finish-load", () => void openDiscFile(startFile));
   // First run (or a helper went missing): install into the app folder straight away,
   // then start watching the CD drive.
   void checkDeps().then(async (list) => {
@@ -364,3 +423,27 @@ const headless = process.argv.includes("--selftest") || process.argv.includes("-
 app.on("window-all-closed", () => {
   if (!headless) app.quit();
 });
+
+/* ---------- Opening .romix files from outside (double-click) ---------- */
+
+function discFileArg(argv: string[]): string | undefined {
+  return argv.slice(1).find((a) => a.toLowerCase().endsWith(".romix") && existsSync(a));
+}
+
+async function openDiscFile(path: string) {
+  const r = await importDisc(path);
+  win?.webContents.send("romix:disc-imported", r);
+}
+
+// One Romix at a time: a second launch (e.g. double-clicking a .romix file) hands its file to this window.
+if (!headless) {
+  if (!app.requestSingleInstanceLock()) app.quit();
+  app.on("second-instance", (_e, argv) => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+    const f = discFileArg(argv);
+    if (f) void openDiscFile(f);
+  });
+}

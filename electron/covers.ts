@@ -16,9 +16,18 @@ const MAX_BYTES = 25 * 1024 * 1024;
 export async function storeCover(dataUrl: string): Promise<string> {
   const m = /^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/i.exec(dataUrl);
   if (!m) throw new Error("Unsupported image");
-  const buf = Buffer.from(m[2], "base64");
+  return storeCoverBytes(Buffer.from(m[2], "base64"), m[1].toLowerCase());
+}
+
+/** Path on disk of a romix-cover:// URL (or null if it isn't one of ours). */
+export function coverFile(url: string): string | null {
+  const m = /^romix-cover:\/\/c\/([a-f0-9]{32}\.(jpg|png|webp))$/.exec(url);
+  return m ? join(paths.covers, m[1]) : null;
+}
+
+export async function storeCoverBytes(buf: Buffer, kind: string): Promise<string> {
   if (buf.length > MAX_BYTES) throw new Error("That image is too large (over 25 MB)");
-  const ext = m[1].toLowerCase() === "png" ? "png" : m[1].toLowerCase() === "webp" ? "webp" : "jpg";
+  const ext = kind.includes("png") ? "png" : kind.includes("webp") ? "webp" : "jpg";
   const name = `${createHash("sha1").update(buf).digest("hex").slice(0, 32)}.${ext}`;
   const file = join(paths.covers, name);
   if (!existsSync(file)) {

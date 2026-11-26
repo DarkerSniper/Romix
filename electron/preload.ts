@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { BurnProgress, DepStatus, DriveInfo, PrepUpdate, RomixBridge } from "../src/shared/api";
+import type { BurnProgress, DepStatus, DriveInfo, ImportResult, PrepUpdate, RomixBridge } from "../src/shared/api";
 
 // The only surface the UI gets. No Node, no raw ipcRenderer, no file system.
 const bridge: RomixBridge = {
@@ -51,6 +51,15 @@ const bridge: RomixBridge = {
   removeFromShelf: (id) => ipcRenderer.invoke("romix:shelf-remove", id),
   outputInserts: (html, action, title, paper) => ipcRenderer.invoke("romix:inserts", html, action, title, paper),
   setCachePolicy: (limitGB, keys) => ipcRenderer.send("romix:cache-policy", limitGB, keys),
+
+  shareInfo: (tracks) => ipcRenderer.invoke("romix:share-info", tracks),
+  exportDisc: (data, includeAudio) => ipcRenderer.invoke("romix:export-disc", data, includeAudio),
+  importDisc: (path) => ipcRenderer.invoke("romix:import-disc", path),
+  onDiscImported: (cb) => {
+    const h = (_e: unknown, r: ImportResult) => cb(r);
+    ipcRenderer.on("romix:disc-imported", h);
+    return () => ipcRenderer.removeListener("romix:disc-imported", h);
+  },
 
   listProjects: () => ipcRenderer.invoke("romix:projects"),
   loadProject: (id) => ipcRenderer.invoke("romix:project-load", id),

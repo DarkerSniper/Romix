@@ -9,6 +9,11 @@ interface ProjectsPageProps {
   /** True when the open disc has songs that would be replaced. */
   hasWork: boolean;
   onOpen: (id: string) => void;
+  onShare: (id: string) => void;
+  /** Opens a .romix file; resolves when the import finished (to refresh the list). */
+  onImport: () => Promise<void>;
+  /** Bumped when a disc was imported from outside, to refresh the list. */
+  refreshKey?: number;
 }
 
 function ago(ts: number): string {
@@ -19,12 +24,18 @@ function ago(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export function ProjectsPage({ currentId, hasWork, onOpen }: ProjectsPageProps) {
+export function ProjectsPage({ currentId, hasWork, onOpen, onShare, onImport, refreshKey }: ProjectsPageProps) {
   const [items, setItems] = useState<ProjectSummary[] | null>(null);
   const [confirm, setConfirm] = useState<{ id: string; kind: "open" | "delete" } | null>(null);
 
   const load = () => void bridge.listProjects().then(setItems);
-  useEffect(load, []);
+  useEffect(load, [refreshKey]);
+
+  const importButton = (
+    <button className="btn small-btn" onClick={() => void onImport().then(load)} title="Open a .romix file someone shared with you">
+      Open shared disc…
+    </button>
+  );
 
   const open = (id: string) => {
     if (hasWork && id !== currentId) setConfirm({ id, kind: "open" });
@@ -41,14 +52,18 @@ export function ProjectsPage({ currentId, hasWork, onOpen }: ProjectsPageProps) 
     return (
       <div className="placeholder">
         <h1>No saved discs yet</h1>
-        <p>Save a disc from the New disc page to burn more copies later or keep working on it.</p>
+        <p>Save a disc from the New disc page to burn more copies later or keep working on it, or open a disc someone shared with you.</p>
+        {importButton}
       </div>
     );
   }
 
   return (
     <div className="projects">
-      <h1 className="settings-title">Saved projects</h1>
+      <div className="projects-head">
+        <h1 className="settings-title">Saved projects</h1>
+        {importButton}
+      </div>
       <div className="project-grid">
         {(items ?? []).map((p) => (
           <motion.div key={p.id} className={`project ${p.id === currentId ? "is-current" : ""}`} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
@@ -85,6 +100,9 @@ export function ProjectsPage({ currentId, hasWork, onOpen }: ProjectsPageProps) 
               <div className="project-actions">
                 <button className="link-btn" onClick={() => open(p.id)}>
                   Open
+                </button>
+                <button className="link-btn" onClick={() => onShare(p.id)}>
+                  Share…
                 </button>
                 <button className="link-btn muted" onClick={() => setConfirm({ id: p.id, kind: "delete" })}>
                   Delete
