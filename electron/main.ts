@@ -24,6 +24,8 @@ import { run, YTDLP_BASE_ARGS, ytdlpEnv, ytdlpPath, ytdlpVersion } from "./tools
 import { checkDeps, installMissing } from "./deps";
 import { prepare, cancelPrep, busy, resetJobs, statusOf } from "./prep";
 import { renderDisc } from "./render";
+import { checkForUpdate, dismissUpdate, initUpdater, installUpdate, openReleasePage, setUpdatePrefs, updateState } from "./updater";
+import type { UpdatePrefs } from "../src/shared/api";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const devUrl = process.env.VITE_DEV_SERVER_URL;
@@ -148,6 +150,13 @@ ipcMain.handle("romix:update-ytdlp", async (): Promise<UpdateResult> => {
   if (r.code !== 0) return { ok: false, message: "Couldn't update yt-dlp. Check your connection and try again.", version: after };
   return { ok: true, message: after && after !== before ? `Updated to ${after}` : "yt-dlp is up to date", version: after };
 });
+
+ipcMain.handle("romix:update-state", () => updateState());
+ipcMain.handle("romix:update-check", () => checkForUpdate());
+ipcMain.handle("romix:update-install", () => installUpdate());
+ipcMain.handle("romix:update-prefs", (_e, patch: Partial<UpdatePrefs>) => setUpdatePrefs(patch && typeof patch === "object" ? patch : {}));
+ipcMain.on("romix:update-dismiss", () => dismissUpdate());
+ipcMain.on("romix:update-page", () => openReleasePage());
 
 ipcMain.handle("romix:drives", () => listDrives());
 ipcMain.handle("romix:burn", (_e, req: BurnRequest) => burn(req));
@@ -417,6 +426,7 @@ app.whenReady().then(() => {
     if (list.some((d) => d.state !== "ready")) await installMissing();
     startDriveWatch();
   });
+  void initUpdater();
 });
 // Headless test modes open and close hidden windows (PDF rendering, UI probe); they exit explicitly.
 const headless = process.argv.includes("--selftest") || process.argv.includes("--burntest");

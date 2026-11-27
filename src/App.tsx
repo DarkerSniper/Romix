@@ -20,6 +20,7 @@ import { Transport } from "./components/Transport";
 import { SetupSheet, useDeps } from "./components/SetupSheet";
 import type { ImportResult, PrepSource, PrepUpdate, SavedTrack, ShareData, ShelfEntry, TrackAnalysis, TrackTrim } from "./shared/api";
 import { ShareSheet } from "./components/ShareSheet";
+import { UpdateBanner, UpdateNotesSheet, useUpdateState } from "./components/UpdateBanner";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { ShelfPage } from "./components/ShelfPage";
 import { InsertsPage } from "./components/InsertsPage";
@@ -92,6 +93,15 @@ export default function App() {
   const [projectId, setProjectId] = useState<string | null>(null);
 
   const setToast = useCallback((m: string | null, action?: Toast["action"]) => setToastState(m ? { message: m, action } : null), []);
+  const update = useUpdateState();
+  const [updateNotes, setUpdateNotes] = useState(false);
+  // First launch after an update: say how it went, once.
+  const updateReported = useRef(false);
+  useEffect(() => {
+    if (!update?.lastUpdate || updateReported.current) return;
+    updateReported.current = true;
+    setToast(update.lastUpdate.ok ? `Romix is now ${update.current}. Your discs and settings are all here.` : `Couldn't update to ${update.lastUpdate.version}. You're still on ${update.current}.`);
+  }, [update, setToast]);
   const setCacheLimit = (gb: number) => {
     setCacheLimitState(gb);
     try {
@@ -442,6 +452,7 @@ export default function App() {
       <Sidebar page={page} onNavigate={setPage} theme={theme.resolved} onToggleTheme={theme.toggle} drives={drives} />
 
       <main className="main">
+        <UpdateBanner state={update} onNotes={() => setUpdateNotes(true)} />
         {page === "settings" ? (
           <SettingsPage
             pref={theme.pref}
@@ -451,6 +462,8 @@ export default function App() {
             setBurnPrefs={setBurnPrefs}
             cacheLimitGB={cacheLimitGB}
             setCacheLimitGB={setCacheLimit}
+            update={update}
+            onUpdateNotes={() => setUpdateNotes(true)}
           />
         ) : page === "projects" ? (
           <ProjectsPage
@@ -620,6 +633,8 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>{updateNotes && update?.available && <UpdateNotesSheet state={update} onClose={() => setUpdateNotes(false)} />}</AnimatePresence>
 
       <AnimatePresence>{shareData && <ShareSheet data={shareData} onClose={() => setShareData(null)} onToast={setToast} />}</AnimatePresence>
 

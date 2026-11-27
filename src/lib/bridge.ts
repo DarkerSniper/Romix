@@ -1,4 +1,4 @@
-import type { BurnProgress, DepStatus, DriveInfo, PrepUpdate, Project, ProjectSummary, RomixBridge } from "../shared/api";
+import type { BurnProgress, DepStatus, DriveInfo, PrepUpdate, Project, ProjectSummary, RomixBridge, UpdateInfo, UpdateState } from "../shared/api";
 import { mockMetadata } from "./mock";
 
 declare global {
@@ -18,6 +18,23 @@ const READY_DEPS: DepStatus[] = [
   { id: "ffmpeg", name: "FFmpeg", purpose: "Converts audio to CD quality", approxMB: 87, state: "ready", progress: 1, version: "preview" },
   { id: "node", name: "Node.js", purpose: "Lets yt-dlp pass YouTube's checks", approxMB: 34, state: "ready", progress: 1, version: "preview" },
 ];
+
+const SAMPLE_UPDATE: UpdateInfo = {
+  version: "0.6.0",
+  name: "Romix 0.6.0 (preview)",
+  notes: "## What's new\n\n- **Check for updates:** Romix tells you when a new version is out and installs it for you.\n- Your saved discs, shelf and settings are kept.",
+  url: "https://github.com/DarkerSniper/Romix/releases",
+  prerelease: true,
+  publishedAt: new Date().toISOString(),
+  bytes: 82_000_000,
+};
+let mockUpdate: UpdateState = { current: "0.5.0", kind: "dev", phase: "idle", progress: 0, prefs: { auto: true, previews: true } };
+const updateListeners = new Set<(s: UpdateState) => void>();
+async function setMockUpdate(patch: Partial<UpdateState>) {
+  mockUpdate = { ...mockUpdate, ...patch };
+  for (const l of updateListeners) l(mockUpdate);
+  return mockUpdate;
+}
 
 const mockBridge: RomixBridge = {
   async resolve(videoId) {
@@ -54,6 +71,17 @@ const mockBridge: RomixBridge = {
   cacheInfo: async () => ({ bytes: 0, files: 0, path: "" }),
   clearCache: async () => ({ bytes: 0, files: 0, path: "" }),
   updateYtdlp: async () => ({ ok: false, message: "Available in the desktop app" }),
+  // Browser preview: "Check for Updates" finds a sample release so the banner can be seen.
+  updateState: async () => mockUpdate,
+  checkForUpdate: async () => setMockUpdate({ phase: "available", lastCheck: Date.now(), dismissed: false, available: SAMPLE_UPDATE }),
+  installUpdate: async () => setMockUpdate({ phase: "error", error: "Updating works in the desktop app." }),
+  setUpdatePrefs: async (p) => setMockUpdate({ prefs: { ...mockUpdate.prefs, ...p } }),
+  dismissUpdate: () => void setMockUpdate({ dismissed: true }),
+  openReleasePage: () => void window.open("https://github.com/DarkerSniper/Romix/releases", "_blank"),
+  onUpdateState: (cb) => {
+    updateListeners.add(cb);
+    return () => updateListeners.delete(cb);
+  },
   setTitleBarTheme: () => {},
 
   drives: async () => [PREVIEW_DRIVE],

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ThemePref } from "../lib/theme";
-import type { CacheInfo, DepStatus } from "../shared/api";
+import type { CacheInfo, DepStatus, UpdateState } from "../shared/api";
 import { bridge, isDesktop } from "../lib/bridge";
 import type { BurnPrefs } from "../lib/burnPrefs";
 
@@ -50,12 +50,39 @@ interface SettingsPageProps {
   setBurnPrefs: (patch: Partial<BurnPrefs>) => void;
   cacheLimitGB: number;
   setCacheLimitGB: (gb: number) => void;
+  update: UpdateState | null;
+  onUpdateNotes: () => void;
 }
 
 const formatBytes = (b: number) =>
   b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : b > 0 ? `${Math.round(b / 1e3)} KB` : "Empty";
 
-export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs, cacheLimitGB, setCacheLimitGB }: SettingsPageProps) {
+function sinceText(t?: number) {
+  if (!t) return "";
+  const min = Math.round((Date.now() - t) / 60000);
+  return min < 1 ? "Checked just now" : min < 60 ? `Checked ${min} min ago` : min < 60 * 24 ? `Checked ${Math.round(min / 60)} h ago` : `Checked ${new Date(t).toLocaleDateString()}`;
+}
+
+function updateHint(u: UpdateState): string {
+  switch (u.phase) {
+    case "checking":
+      return "Checking…";
+    case "none":
+      return `You're up to date · ${sinceText(u.lastCheck)}`;
+    case "available":
+      return `Romix ${u.available!.version} is available${u.available!.prerelease ? " (preview)" : ""}`;
+    case "downloading":
+      return `Downloading ${u.available?.version}… ${Math.round(u.progress * 100)}%`;
+    case "installing":
+      return "Installing…";
+    case "error":
+      return u.error ?? "Couldn't check for updates";
+    default:
+      return sinceText(u.lastCheck) || "Not checked yet";
+  }
+}
+
+export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs, cacheLimitGB, setCacheLimitGB, update: upd, onUpdateNotes }: SettingsPageProps) {
   const [deps, setDeps] = useState<DepStatus[]>([]);
   const [cache, setCache] = useState<CacheInfo | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -114,6 +141,55 @@ export function SettingsPage({ pref, onChange, onToast, burnPrefs, setBurnPrefs,
             ))}
           </div>
         </div>
+      </section>
+
+      <h2 className="settings-heading">Updates</h2>
+      <section className="settings-group">
+        <div className="settings-row">
+          <div className="settings-text">
+            <div className="settings-label">Romix {upd?.current ?? ""}</div>
+            <div className={`settings-hint ${upd?.phase === "error" ? "is-warning" : ""}`}>{upd ? updateHint(upd) : "…"}</div>
+          </div>
+          <div className="settings-actions">
+            {upd?.available && (upd.phase === "available" || upd.phase === "error") && (
+              <>
+                <button className="link-btn" onClick={onUpdateNotes}>
+                  What's new
+                </button>
+                <button className="btn btn-primary" onClick={() => void bridge.installUpdate()}>
+                  {upd.kind === "dev" ? "Open Release Page" : "Update"}
+                </button>
+              </>
+            )}
+            <button className="btn" onClick={() => void bridge.checkForUpdate()} disabled={!upd || upd.phase === "checking" || upd.phase === "downloading" || upd.phase === "installing"}>
+              Check for Updates
+            </button>
+          </div>
+        </div>
+        <label className="settings-row settings-row-sep">
+          <div className="settings-text">
+            <div className="settings-label">Check automatically</div>
+            <div className="settings-hint">Once a day when Romix opens. Nothing is downloaded until you choose Update.</div>
+          </div>
+          <span className="toggle">
+            <input type="checkbox" checked={upd?.prefs.auto ?? true} disabled={!upd} onChange={(e) => void bridge.setUpdatePrefs({ auto: e.target.checked })} />
+            <span className="toggle-track" aria-hidden="true">
+              <span className="toggle-thumb" />
+            </span>
+          </span>
+        </label>
+        <label className="settings-row settings-row-sep">
+          <div className="settings-text">
+            <div className="settings-label">Include previews</div>
+            <div className="settings-hint">Get new versions before they're fully tested.</div>
+          </div>
+          <span className="toggle">
+            <input type="checkbox" checked={upd?.prefs.previews ?? false} disabled={!upd} onChange={(e) => void bridge.setUpdatePrefs({ previews: e.target.checked })} />
+            <span className="toggle-track" aria-hidden="true">
+              <span className="toggle-thumb" />
+            </span>
+          </span>
+        </label>
       </section>
 
       <h2 className="settings-heading">Helper tools</h2>

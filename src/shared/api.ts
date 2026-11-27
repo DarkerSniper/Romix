@@ -53,6 +53,47 @@ export interface UpdateResult {
   version?: string;
 }
 
+/* ---------- Updating Romix itself ---------- */
+
+/** How this copy was installed decides how it updates. */
+export type UpdateKind = "installer" | "portable" | "dev";
+
+export interface UpdatePrefs {
+  /** Check quietly on launch, at most once a day. */
+  auto: boolean;
+  /** Offer preview (pre-release) versions too. */
+  previews: boolean;
+}
+
+export interface UpdateInfo {
+  version: string;
+  name: string;
+  /** Release notes (Markdown). */
+  notes: string;
+  /** The release page on GitHub. */
+  url: string;
+  prerelease: boolean;
+  publishedAt: string;
+  /** Size of the download this copy needs. */
+  bytes: number;
+}
+
+export interface UpdateState {
+  current: string;
+  kind: UpdateKind;
+  phase: "idle" | "checking" | "none" | "available" | "downloading" | "installing" | "error";
+  available?: UpdateInfo;
+  /** 0–1 while downloading. */
+  progress: number;
+  error?: string;
+  lastCheck?: number;
+  prefs: UpdatePrefs;
+  /** Banner hidden for this version until the next launch. */
+  dismissed?: boolean;
+  /** Set on the first launch after an update was attempted. */
+  lastUpdate?: { ok: boolean; version: string };
+}
+
 /* ---------- Milestone 3: preparing audio and building the disc ---------- */
 
 /** What to prepare: a YouTube video or a local audio file. */
@@ -268,6 +309,16 @@ export interface RomixBridge {
   installDeps(): Promise<DepStatus[]>;
   onDepsUpdate(cb: (list: DepStatus[]) => void): () => void;
   updateYtdlp(): Promise<UpdateResult>;
+
+  updateState(): Promise<UpdateState>;
+  checkForUpdate(): Promise<UpdateState>;
+  /** Downloads and verifies the new version, then closes Romix to install it. */
+  installUpdate(): Promise<UpdateState>;
+  setUpdatePrefs(patch: Partial<UpdatePrefs>): Promise<UpdateState>;
+  /** Hides the banner for this version until the next launch. */
+  dismissUpdate(): void;
+  openReleasePage(): void;
+  onUpdateState(cb: (s: UpdateState) => void): () => void;
   setTitleBarTheme(theme: "dark" | "light"): void;
 
   drives(): Promise<DriveInfo[]>;

@@ -104,6 +104,8 @@ function request<T>(cmd: string, args: Record<string, unknown> = {}, onEvent?: P
 /* ---------- drive watching ---------- */
 
 let burning = false;
+/** True while a burn (or erase) is writing to a disc: updates must wait. */
+export const isBurning = () => burning;
 let lastDrives = "";
 let watchTimer: NodeJS.Timeout | null = null;
 

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { BurnProgress, DepStatus, DriveInfo, ImportResult, PrepUpdate, RomixBridge } from "../src/shared/api";
+import type { BurnProgress, DepStatus, DriveInfo, ImportResult, PrepUpdate, RomixBridge, UpdateState } from "../src/shared/api";
 
 // The only surface the UI gets. No Node, no raw ipcRenderer, no file system.
 const bridge: RomixBridge = {
@@ -26,6 +26,17 @@ const bridge: RomixBridge = {
   cacheInfo: () => ipcRenderer.invoke("romix:cache-info"),
   clearCache: () => ipcRenderer.invoke("romix:clear-cache"),
   updateYtdlp: () => ipcRenderer.invoke("romix:update-ytdlp"),
+  updateState: () => ipcRenderer.invoke("romix:update-state"),
+  checkForUpdate: () => ipcRenderer.invoke("romix:update-check"),
+  installUpdate: () => ipcRenderer.invoke("romix:update-install"),
+  setUpdatePrefs: (patch) => ipcRenderer.invoke("romix:update-prefs", patch),
+  dismissUpdate: () => ipcRenderer.send("romix:update-dismiss"),
+  openReleasePage: () => ipcRenderer.send("romix:update-page"),
+  onUpdateState: (cb) => {
+    const h = (_e: unknown, s: UpdateState) => cb(s);
+    ipcRenderer.on("romix:update", h);
+    return () => ipcRenderer.removeListener("romix:update", h);
+  },
   setTitleBarTheme: (theme) => ipcRenderer.send("romix:titlebar-theme", theme),
 
   drives: () => ipcRenderer.invoke("romix:drives"),

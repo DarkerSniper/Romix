@@ -25,6 +25,7 @@
 - **Share a disc.** Save it as one `.romix` file (songs, order, trims, settings and covers, and optionally your own audio files) and send it to anyone with Romix: they double-click it or drag it into the window. Or copy a plain list of the YouTube links. Shared files are checked part by part before opening and only ever contain songs, settings, pictures and audio.
 - **Your own cover image.** Add a photo or artwork, frame it (drag, zoom, rotate, with a print-resolution check) and use it in any cover design: full bleed, a collage tile, the ring's centre label, or behind the waveform or title, and on the disc label.
 - **Run and go.** On first launch Romix downloads the free tools it needs (yt-dlp, FFmpeg, Node.js) into its own folder, verifies each one, and shows you what it's doing.
+- **Updates itself.** Romix checks GitHub for a new version once a day (or when you press Check for Updates in Settings), shows what's new, and installs it when you choose Update. The download is checked against the release's checksums first. Your discs, shelf and settings are kept.
 - **Native look.** Clean macOS-style design, dark mode by default, with Light and Auto in Settings.
 
 ## Audio quality
@@ -63,6 +64,8 @@ Download from Releases:
 - **Romix-x.y.z-x64.zip**: portable. Unzip anywhere and run `Romix.exe`.
 
 On first launch Romix downloads its tools into a `data` folder next to `Romix.exe`. Everything Romix stores stays in that folder. Updating keeps it; uninstalling asks before deleting it.
+
+From 0.6.0 on, Romix tells you when a new version is out and updates itself: the installed copy runs the new installer quietly, and the portable copy swaps its own files (only Romix's, never anything else in that folder). Each release publishes a `checksums.txt`, and Romix won't install a download that doesn't match it. Turn off automatic checks or preview versions in Settings → Updates.
 
 The app isn't code-signed yet, so Windows may show "Windows protected your PC" the first time: choose **More info → Run anyway**.
 
