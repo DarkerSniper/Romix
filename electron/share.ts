@@ -8,6 +8,7 @@ import { AUDIO_EXT, DiscFileError, LIMITS, decodeManifest, encodeDisc, type Shar
 import { paths } from "./paths";
 import { coverFile, storeCoverBytes } from "./covers";
 import { saveProject } from "./projects";
+import { designImages, remapDesign, songKey } from "../src/lib/insertDesign";
 
 /**
  * Sharing discs as single .romix files: export with covers (and optionally the
@@ -78,12 +79,15 @@ export async function buildDiscFile(data: ShareData, includeAudio: boolean): Pro
 
   const tracks: SharedTrack[] = [];
   let skippedLocal = 0;
-  for (const t of data.tracks) {
+  /** Where each song ends up in the shared file (songs left out have no entry). */
+  const songAt = new Map<number, number>();
+  for (const [i, t] of data.tracks.entries()) {
     const audio = includeAudio ? await localAudio(t) : null;
     if (t.source === "local" && !audio) {
       skippedLocal++;
       continue;
     }
+    songAt.set(i, tracks.length);
     if (audio && audio.size > LIMITS.audioBytes) return { ok: false, message: `"${t.title}" is too large to include` };
     const small = dataUrl(t.cover);
     const hiPath = t.coverHi ? coverFile(t.coverHi) : null;
@@ -105,8 +109,26 @@ export async function buildDiscFile(data: ShareData, includeAudio: boolean): Pro
   }
   if (!tracks.length) return { ok: false, message: "Nothing to share: this disc only has your own audio files. Turn on “Include my audio files”." };
 
+  // The inserts design, with each of its pictures as a part of the file.
+  let inserts;
+  if (data.inserts) {
+    const parts = new Map<string, string>();
+    for (const url of designImages(data.inserts)) {
+      const inline = dataUrl(url);
+      const file = inline ? null : coverFile(url);
+      const bytes = inline ? inline.bytes : file && existsSync(file) ? await readFile(file) : null;
+      if (!bytes) continue;
+      const type = inline ? inline.type : file!.endsWith(".png") ? "image/png" : file!.endsWith(".webp") ? "image/webp" : "image/jpeg";
+      parts.set(url, `blob:${add(bytes, type)}`);
+    }
+    // Songs travel as their place in the file ("n:3"); files and ids may differ on the other computer.
+    const keyAt = new Map<string, string>();
+    data.tracks.forEach((t, i) => songAt.has(i) && !keyAt.has(songKey(t)) && keyAt.set(songKey(t), `n:${songAt.get(i)}`));
+    inserts = remapDesign(data.inserts, (u) => parts.get(u), (k) => keyAt.get(k));
+  }
+
   const parts = encodeDisc(
-    { format: "romix-disc", version: 1, createdAt: Date.now(), app: "Romix", disc: { title: data.title, options: data.options }, tracks },
+    { format: "romix-disc", version: 1, createdAt: Date.now(), app: "Romix", disc: { title: data.title, options: data.options, inserts }, tracks },
     blobs,
   );
   return { ok: true, parts, skippedLocal };
@@ -146,13 +168,17 @@ export async function importDisc(path: string): Promise<ImportResult> {
 
       const tracks: SavedTrack[] = [];
       let missingLocal = 0;
-      for (const t of manifest.tracks) {
+      const songAt = new Map<number, number>();
+      for (const [i, t] of manifest.tracks.entries()) {
         let filePath: string | undefined;
         if (t.source === "local") {
           if (!t.audio) {
             missingLocal++;
             continue;
           }
+        }
+        songAt.set(i, tracks.length);
+        if (t.source === "local" && t.audio) {
           const buf = await read(t.audio.blob);
           await mkdir(paths.sharedAudio, { recursive: true });
           filePath = join(paths.sharedAudio, `${sha256(buf).slice(0, 32)}.${t.audio.ext}`);
@@ -179,8 +205,22 @@ export async function importDisc(path: string): Promise<ImportResult> {
       }
       if (!tracks.length) return { ok: false, message: "This shared disc has no songs Romix can use" };
 
+      // The inserts design's pictures go into Romix's covers folder, like song covers.
+      let inserts = manifest.disc.inserts;
+      if (inserts) {
+        const stored = new Map<string, string>();
+        for (const ref of designImages(inserts)) {
+          const n = Number(ref.slice(5));
+          stored.set(ref, await storeCoverBytes(await read(n), manifest.blobs[n].type));
+        }
+        inserts = remapDesign(inserts, (u) => stored.get(u), (k) => {
+          const at = songAt.get(Number(k.slice(2)));
+          return at === undefined ? undefined : songKey(tracks[at]);
+        });
+      }
+
       const id = randomUUID();
-      await saveProject({ id, title: manifest.disc.title, options: manifest.disc.options, tracks });
+      await saveProject({ id, title: manifest.disc.title, options: manifest.disc.options, tracks, inserts });
       return { ok: true, projectId: id, title: manifest.disc.title, songs: tracks.length, missingLocal };
     } finally {
       await fh.close();

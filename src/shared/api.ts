@@ -3,6 +3,9 @@
  * `window.romix` by electron/preload.ts. Plain data only (structured-clone safe).
  */
 
+import type { InsertDesign } from "../lib/insertDesign";
+export type { InsertDesign };
+
 export type ResolveErrorCode =
   | "private"
   | "unavailable"
@@ -185,7 +188,7 @@ export interface BurnRequest {
   options: DiscRequest["options"];
   trims?: DiscRequest["trims"];
   /** What to record on the Shelf after a successful burn. */
-  record?: { title: string; tracks: SavedTrack[] };
+  record?: { title: string; tracks: SavedTrack[]; inserts?: InsertDesign };
   /** Sectors per second; 0 = the drive's fastest. */
   speed: number;
   verify: boolean;
@@ -239,6 +242,8 @@ export interface Project {
   updatedAt: number;
   options: DiscRequest["options"];
   tracks: SavedTrack[];
+  /** How its printed inserts look. */
+  inserts?: InsertDesign;
 }
 
 export interface ProjectSummary {
@@ -261,6 +266,7 @@ export interface ShelfEntry {
   copies: number;
   verified: "ok" | "issues" | "skipped";
   speedX?: number;
+  inserts?: InsertDesign;
 }
 
 export type InsertAction = "pdf" | "print";
@@ -271,6 +277,7 @@ export interface ShareData {
   title: string;
   options: DiscRequest["options"];
   tracks: SavedTrack[];
+  inserts?: InsertDesign;
 }
 
 export interface ShareInfo {
@@ -336,6 +343,8 @@ export interface RomixBridge {
   analyze(key: string): Promise<TrackAnalysis | null>;
   listShelf(): Promise<ShelfEntry[]>;
   removeFromShelf(id: string): Promise<void>;
+  /** Saves the inserts design of a disc on the Shelf. */
+  setShelfInserts(id: string, design: InsertDesign): Promise<void>;
   /** Saves the inserts page as a PDF (file dialog) or prints it. */
   outputInserts(html: string, action: InsertAction, title: string, paper: "A4" | "Letter"): Promise<{ ok: boolean; message: string; path?: string }>;
   /** Stores an image (print cover or your own cover) in the app folder; returns a romix-cover:// URL. */

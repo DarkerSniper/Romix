@@ -60,6 +60,7 @@ const bridge: RomixBridge = {
   storeCover: (dataUrl) => ipcRenderer.invoke("romix:store-cover", dataUrl),
   listShelf: () => ipcRenderer.invoke("romix:shelf"),
   removeFromShelf: (id) => ipcRenderer.invoke("romix:shelf-remove", id),
+  setShelfInserts: (id, design) => ipcRenderer.invoke("romix:shelf-inserts", id, design),
   outputInserts: (html, action, title, paper) => ipcRenderer.invoke("romix:inserts", html, action, title, paper),
   setCachePolicy: (limitGB, keys) => ipcRenderer.send("romix:cache-policy", limitGB, keys),
 

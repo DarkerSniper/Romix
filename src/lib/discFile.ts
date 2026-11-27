@@ -13,6 +13,8 @@
  * Everything is type-checked and size-limited before Romix uses it.
  */
 
+import { sanitizeDesign, type InsertDesign } from "./insertDesign";
+
 export const MAGIC = "ROMIXDSC";
 export const FORMAT_VERSION = 1;
 const HEADER = 14;
@@ -67,6 +69,8 @@ export interface DiscManifest {
   disc: {
     title: string;
     options: { gapMode: "none" | "gap2" | "crossfade"; crossfadeSec: number; normalize: boolean; speedPct?: number };
+    /** The inserts design; its pictures are "blob:N" references to parts of the file. */
+    inserts?: InsertDesign;
   };
   tracks: SharedTrack[];
   blobs: BlobEntry[];
@@ -201,6 +205,14 @@ export function decodeManifest(head: Uint8Array, fileSize: number): { manifest: 
     };
   });
 
+  // The inserts design: every picture must be one of the file's image parts.
+  const blobImage = (u: unknown) => {
+    const m = typeof u === "string" ? /^blob:(\d+)$/.exec(u) : null;
+    const b = m ? blobs[Number(m[1])] : undefined;
+    return b && (IMAGE_TYPES as readonly string[]).includes(b.type) && b.length <= LIMITS.coverBytes ? (u as string) : undefined;
+  };
+  const inserts = disc.inserts ? sanitizeDesign(disc.inserts, blobImage, tracks.map((_, i) => `n:${i}`)) : undefined;
+
   return {
     blobStart,
     manifest: {
@@ -216,6 +228,7 @@ export function decodeManifest(head: Uint8Array, fileSize: number): { manifest: 
           normalize: o.normalize === true,
           speedPct: optNum(o.speedPct, "speed", 0, 3) ?? 0,
         },
+        inserts,
       },
       tracks,
       blobs,

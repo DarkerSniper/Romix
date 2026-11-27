@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { BurnRequest, ShelfEntry, VerifyReport } from "../src/shared/api";
 import { paths } from "./paths";
+import { localImageUrl, sanitizeDesign, songKey } from "../src/lib/insertDesign";
 
 /** History of burned discs, kept in <app folder>/data/shelf.json. */
 const file = () => join(paths.root, "shelf.json");
@@ -28,9 +29,11 @@ export async function recordBurn(req: BurnRequest, verify: VerifyReport | undefi
   const signature = JSON.stringify([req.record.title, req.keys, req.options, req.trims ?? {}]);
   const verified: ShelfEntry["verified"] = !verify ? "skipped" : verify.tracks.every((t) => t.ok) ? "ok" : "issues";
   const recent = list.find((e) => e.signature === signature && Date.now() - e.burnedAt < 6 * 3600_000);
+  const inserts = req.record.inserts ? sanitizeDesign(req.record.inserts, localImageUrl, req.record.tracks.map(songKey)) : undefined;
   if (recent) {
     recent.copies += 1;
     recent.burnedAt = Date.now();
+    if (inserts) recent.inserts = inserts;
     if (verified === "issues") recent.verified = "issues";
   } else {
     list.push({
@@ -43,8 +46,18 @@ export async function recordBurn(req: BurnRequest, verify: VerifyReport | undefi
       copies: 1,
       verified,
       speedX,
+      inserts,
     });
   }
+  await save(list);
+}
+
+/** Keeps a Shelf disc's inserts design (edited later on the Inserts page). */
+export async function setShelfInserts(id: string, design: unknown) {
+  const list = await listShelf();
+  const e = list.find((x) => x.id === id);
+  if (!e) return;
+  e.inserts = sanitizeDesign(design, localImageUrl, e.tracks.map(songKey));
   await save(list);
 }
 

@@ -18,6 +18,7 @@ import { useTheme } from "./lib/theme";
 import { usePlayer } from "./lib/player";
 import { Transport } from "./components/Transport";
 import { SetupSheet, useDeps } from "./components/SetupSheet";
+import type { InsertDesign } from "./lib/insertDesign";
 import type { ImportResult, PrepSource, PrepUpdate, SavedTrack, ShareData, ShelfEntry, TrackAnalysis, TrackTrim } from "./shared/api";
 import { ShareSheet } from "./components/ShareSheet";
 import { UpdateBanner, UpdateNotesSheet, useUpdateState } from "./components/UpdateBanner";
@@ -91,6 +92,8 @@ export default function App() {
   const drives = useDrives();
   const [burnPrefs, setBurnPrefs] = useBurnPrefs();
   const [projectId, setProjectId] = useState<string | null>(null);
+  /** The open disc's inserts design (saved with the disc). */
+  const [inserts, setInserts] = useState<InsertDesign | undefined>(undefined);
 
   const setToast = useCallback((m: string | null, action?: Toast["action"]) => setToastState(m ? { message: m, action } : null), []);
   const update = useUpdateState();
@@ -350,11 +353,12 @@ export default function App() {
   /* ---------- projects and shelf ---------- */
 
   const loadDisc = useCallback(
-    (data: { title: string; options: DiscOptions; tracks: SavedTrack[] }, id: string | null) => {
+    (data: { title: string; options: DiscOptions; tracks: SavedTrack[]; inserts?: InsertDesign }, id: string | null) => {
       player.reset();
       setTracks(data.tracks.map((t) => ({ ...t, id: crypto.randomUUID(), status: "ready" as const })));
       setTitle(data.title);
       setOptions({ speedPct: 0, ...data.options });
+      setInserts(data.inserts);
       setProjectId(id);
       setPage("disc");
     },
@@ -364,10 +368,10 @@ export default function App() {
   const saveProject = useCallback(async () => {
     if (ready.length === 0) return setToast("Add some songs before saving");
     const id = projectId ?? crypto.randomUUID();
-    await bridge.saveProject({ id, title, options, tracks: ready.map(toSaved) });
+    await bridge.saveProject({ id, title, options, tracks: ready.map(toSaved), inserts });
     setProjectId(id);
     setToast("Saved");
-  }, [ready, projectId, title, options, setToast]);
+  }, [ready, projectId, title, options, inserts, setToast]);
 
   const openProject = useCallback(
     async (id: string) => {
@@ -385,7 +389,7 @@ export default function App() {
 
   const shareProject = async (id: string) => {
     const p = await bridge.loadProject(id);
-    if (p) setShareData({ title: p.title, options: p.options, tracks: p.tracks });
+    if (p) setShareData({ title: p.title, options: p.options, tracks: p.tracks, inserts: p.inserts });
   };
 
   const handleImport = (r: ImportResult) => {
@@ -406,7 +410,7 @@ export default function App() {
   useEffect(() => bridge.onDiscImported((r) => handleImportRef.current(r)), []);
 
   const openShelf = (e: ShelfEntry, burnNow: boolean) => {
-    loadDisc({ title: e.title, options: e.options, tracks: e.tracks }, null);
+    loadDisc({ title: e.title, options: e.options, tracks: e.tracks, inserts: e.inserts }, null);
     if (burnNow) setBurning(true);
   };
 
@@ -484,14 +488,22 @@ export default function App() {
             }}
           />
         ) : page === "inserts" ? (
-          <InsertsPage key={insertSource ?? "current"} current={{ title, tracks: ready.map(toSaved), keys: ready.map((t) => t.sourceKey) }} initial={insertSource} onToast={setToast} />
+          <InsertsPage
+            key={insertSource ?? "current"}
+            current={{ title, tracks: ready.map(toSaved), keys: ready.map((t) => t.sourceKey), design: inserts }}
+            currentProjectId={projectId}
+            onCurrentDesign={setInserts}
+            onSaveCurrent={() => void saveProject()}
+            initial={insertSource}
+            onToast={setToast}
+          />
         ) : (
           <>
             <header className="header">
               <div className="header-actions">
                 <button
                   className="btn header-save"
-                  onClick={() => (ready.length ? setShareData({ title, options, tracks: ready.map(toSaved) }) : setToast("Add some songs before sharing"))}
+                  onClick={() => (ready.length ? setShareData({ title, options, tracks: ready.map(toSaved), inserts }) : setToast("Add some songs before sharing"))}
                   title="Share this disc with someone who has Romix"
                 >
                   Share
@@ -621,7 +633,7 @@ export default function App() {
             keys={ready.map((t) => t.sourceKey).filter(Boolean) as string[]}
             options={options}
             trims={trims}
-            record={{ title, tracks: ready.map(toSaved) }}
+            record={{ title, tracks: ready.map(toSaved), inserts }}
             totalSec={totalSec}
             title={title}
             prepProgress={allPrepared ? 1 : Math.min(0.999, prepProgress)}

@@ -126,6 +126,7 @@ const mockBridge: RomixBridge = {
   storeCover: async (dataUrl) => dataUrl,
   listShelf: async () => [],
   removeFromShelf: async () => {},
+  setShelfInserts: async () => {},
   outputInserts: async () => ({ ok: false, message: "Printing and PDFs work in the desktop app" }),
   setCachePolicy: () => {},
 

@@ -8,7 +8,8 @@ import type { BurnRequest, CacheInfo, DiscRequest, PrepSource, Project, UpdateRe
 import { burn, cancelBurn, eject, endBurnSession, erase, layout, listDrives, onBurnProgress, startDriveWatch, toPcm } from "./burner";
 import { deleteProject, listProjects, loadProject, saveProject } from "./projects";
 import { analyze } from "./analyze";
-import { listShelf, removeFromShelf } from "./shelf";
+import { listShelf, removeFromShelf, setShelfInserts } from "./shelf";
+import { applyPreset, defaultDesign, defaultLook, songKey } from "../src/lib/insertDesign";
 import { outputInserts, renderInsertsPdf, renderInsertsPng } from "./insertsOut";
 import { buildInsertsHtml } from "../src/lib/inserts";
 import { writeFile } from "node:fs/promises";
@@ -169,6 +170,7 @@ ipcMain.handle("romix:analyze", (_e, key: unknown) => analyze(String(key)));
 ipcMain.handle("romix:store-cover", (_e, dataUrl: unknown) => storeCover(String(dataUrl)));
 ipcMain.handle("romix:shelf", () => listShelf());
 ipcMain.handle("romix:shelf-remove", (_e, id: unknown) => removeFromShelf(String(id)));
+ipcMain.handle("romix:shelf-inserts", (_e, id: unknown, design: unknown) => setShelfInserts(String(id), design));
 ipcMain.handle("romix:inserts", (_e, html: unknown, action: unknown, title: unknown, paper: unknown) =>
   outputInserts(String(html), action === "print" ? "print" : "pdf", String(title), paper === "Letter" ? "Letter" : "A4", win),
 );
@@ -278,17 +280,25 @@ async function selfTest() {
       const hi = r.track.coverDataUrl ? await storeCover(r.track.coverDataUrl).catch(() => undefined) : undefined;
       insertTracks.push({ title: r.track.title, artist: r.track.artist, durationSec: r.track.durationSec, cover: hi ?? "", coverHi: hi, color: "#334455", videoId: id });
     }
-    const htmlOut = buildInsertsHtml({ title: "Romix self-test", tracks: insertTracks, front: "ring", format: "booklet", labelKind: "sheet", colorStrip: true, qr: true, labelRing: true, ruler: true, paper: "A4", volume: 1 });
+    const booklet = { ...defaultDesign(), front: "ring" as const, format: "booklet" as const, labelRing: true };
+    const htmlOut = buildInsertsHtml({ title: "Romix self-test", tracks: insertTracks, design: booklet, paper: "A4", volume: 1 });
     const pdf = await renderInsertsPdf(htmlOut, "A4");
     const exportsDir = join(paths.root, "exports");
     await mkdir(exportsDir, { recursive: true });
     await writeFile(join(exportsDir, "selftest-inserts.pdf"), pdf);
     const boxes = [...pdf.toString("latin1").matchAll(/\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/g)].map((m) => `${Math.round((+m[1] * 25.4) / 72)}x${Math.round((+m[2] * 25.4) / 72)}mm`);
     log({ step: "inserts-pdf", bytes: pdf.length, pages: boxes, coversStored: insertTracks.filter((t) => t.coverHi).length, file: join(exportsDir, "selftest-inserts.pdf") });
-    // Pictures of each front style with real covers (single format, page 1 only).
-    for (const front of ["collage", "ring", "cover"] as const) {
-      const one = buildInsertsHtml({ title: "Road Trip", subtitle: "Summer 2026", dedication: "For Mom", tracks: insertTracks, front, format: "single", labelKind: "sheet", colorStrip: true, qr: true, labelRing: true, ruler: true, paper: "A4", volume: 3 });
-      await writeFile(join(exportsDir, `selftest-${front}.png`), await renderInsertsPng(one, 210, 297 * 2));
+    // Pictures of a few designs with real covers (single format, both pages): today's default, the ring,
+    // and a customised one (dark colours, a grid of pictures behind the back card's tracklist, a strip on the label).
+    const custom = applyPreset({ ...defaultDesign(), labelRing: true, font: "serif" as const, band: "none" as const, titlePos: "top" as const }, "dark", insertTracks);
+    custom.sections.front = { ...custom.sections.front!, layout: "big3", gap: 1.5, gapColor: "#111111" };
+    custom.sections.back = { ...custom.sections.back!, layout: "grid6", wash: 0.6, accent: "#ff9f0a" };
+    custom.sections.spine = { ...custom.sections.spine!, layout: "stack", count: 3, wash: 0.5 };
+    custom.sections.label = { ...custom.sections.label!, layout: "grid4", gap: 1 };
+    const designs = { default: defaultDesign(), ring: { ...defaultDesign(), front: "ring" as const }, custom };
+    for (const [name, design] of Object.entries(designs)) {
+      const one = buildInsertsHtml({ title: "Road Trip", subtitle: "Summer 2026", dedication: "For Mom", tracks: insertTracks, design, paper: "A4", volume: 3 });
+      await writeFile(join(exportsDir, `selftest-${name}.png`), await renderInsertsPng(one, 210, 297 * 2));
     }
   }
 
@@ -305,7 +315,12 @@ async function selfTest() {
     }
     shared.push({ title: "My own demo", artist: "Me", durationSec: 6, cover: "", color: "#225577", source: "local", filePath: own });
     const options = { gapMode: "crossfade" as const, crossfadeSec: 4, normalize: true, speedPct: 0 };
-    const built = await buildDiscFile({ title: "Shared self-test", options, tracks: shared }, true);
+    // An inserts design with one of "your" pictures and a song's cover, to check it travels with the disc.
+    const ownPic = shared.find((t) => t.coverHi)?.coverHi;
+    const shareDesign = ownPic
+      ? { ...defaultDesign(), images: [{ id: "mine", src: ownPic, w: 640, h: 360 }], sections: { back: { ...defaultLook("back", "pictures", []), layout: "cols2" as const, tiles: [{ ref: { own: "mine" } }, { ref: { song: songKey(shared[1] ?? shared[0]) } }] } } }
+      : undefined;
+    const built = await buildDiscFile({ title: "Shared self-test", options, tracks: shared, inserts: shareDesign }, true);
     if (!built.ok) throw new Error(built.message);
     const file = join(paths.root, "exports", "selftest.romix");
     await writeParts(file, built.parts);
@@ -322,6 +337,12 @@ async function selfTest() {
       printCoversRestored: proj?.tracks.filter((t) => t.coverHi && coverFile(t.coverHi) && existsSync(coverFile(t.coverHi)!)).length,
       ownAudioIdentical: Boolean(ownBack?.filePath && same(await readFile(ownBack.filePath), await readFile(own))),
       ownAudioInsideAppFolder: Boolean(ownBack?.filePath?.startsWith(paths.sharedAudio)),
+      insertsKept: Boolean(
+        proj?.inserts &&
+          proj.inserts.images.length === 1 &&
+          existsSync(coverFile(proj.inserts.images[0].src) ?? "") &&
+          JSON.stringify(proj.inserts.sections.back?.tiles[1]?.ref) === JSON.stringify({ song: songKey(proj.tracks[1] ?? proj.tracks[0]) }),
+      ),
     };
     // Tamper: flip one byte in the last part (the audio) and expect a clear refusal.
     const bytes = await readFile(file);

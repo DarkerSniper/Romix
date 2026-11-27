@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
+import { defaultDesign, defaultLook } from "./insertDesign";
 import { DiscFileError, decodeManifest, encodeDisc, linksText, LIMITS, MAGIC, type DiscManifest } from "./discFile";
 
 const sha = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
@@ -99,5 +100,23 @@ describe(".romix disc file", () => {
     const text = linksText("Road Trip", base.tracks);
     expect(text).toContain("1. Despacito · Luis Fonsi\nhttps://music.youtube.com/watch?v=kJQP7kiw5Fk");
     expect(text).not.toContain("My demo"); // local songs have no link
+  });
+});
+
+describe("inserts design in a shared disc", () => {
+  it("keeps the design, with pictures only from the file's own image parts", () => {
+    const design = {
+      ...defaultDesign(),
+      images: [{ id: "mine", src: "blob:0", w: 100, h: 100 }, { id: "audio", src: "blob:1", w: 1, h: 1 }, { id: "web", src: "https://x.example/a.jpg", w: 1, h: 1 }],
+      sections: { back: { ...defaultLook("back", "pictures", []), layout: "cols2" as const, tiles: [{ ref: { own: "mine" } }, { ref: { song: "n:1" } }, { ref: { song: "n:9" } }] } },
+    };
+    const { manifest } = decode(file({ ...base, disc: { ...base.disc, inserts: design } }));
+    const got = manifest.disc.inserts!;
+    expect(got.images.map((i) => i.id)).toEqual(["mine"]); // an audio part or a web address is never a picture
+    expect(got.sections.back!.tiles).toEqual([{ ref: { own: "mine" } }, { ref: { song: "n:1" } }, {}]);
+  });
+
+  it("older files without a design still open", () => {
+    expect(decode(file()).manifest.disc.inserts).toBeUndefined();
   });
 });

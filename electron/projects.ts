@@ -2,6 +2,7 @@ import { readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Project, ProjectSummary } from "../src/shared/api";
 import { paths } from "./paths";
+import { localImageUrl, sanitizeDesign, songKey } from "../src/lib/insertDesign";
 
 /** Saved discs live in <app folder>/data/projects as one JSON file each. */
 const file = (id: string) => join(paths.projects, `${id.replace(/[^\w-]/g, "")}.json`);
@@ -40,7 +41,7 @@ export async function loadProject(id: string): Promise<Project | null> {
 
 export async function saveProject(p: Omit<Project, "updatedAt">): Promise<ProjectSummary> {
   if (!p.id || !Array.isArray(p.tracks)) throw new Error("Invalid project");
-  const full: Project = { ...p, title: p.title.trim() || "Untitled mix", updatedAt: Date.now() };
+  const full: Project = { ...p, title: p.title.trim() || "Untitled mix", updatedAt: Date.now(), inserts: p.inserts ? sanitizeDesign(p.inserts, localImageUrl, p.tracks.map(songKey)) : undefined };
   const tmp = `${file(p.id)}.tmp`;
   await writeFile(tmp, JSON.stringify(full));
   await rename(tmp, file(p.id));
