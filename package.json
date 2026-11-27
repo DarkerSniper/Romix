@@ -1,7 +1,7 @@
 {
   "name": "romix",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": "DarkerSniper",
   "homepage": "https://github.com/DarkerSniper/Romix",
   "description": "Turn YouTube music links into a burned audio CD, with a beautiful native-feeling UI.",

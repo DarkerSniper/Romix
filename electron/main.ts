@@ -61,7 +61,14 @@ function createWindow() {
     titleBarOverlay: { ...TITLEBAR.dark, height: 36 },
     webPreferences: webPreferences(),
   });
-  win.once("ready-to-show", () => win?.show());
+  // "ready-to-show" sometimes never fires on some graphics drivers, which left Romix running with no window.
+  // Show it on whichever comes first: the first paint, the page finishing loading, or a short timeout.
+  const reveal = () => {
+    if (win && !win.isDestroyed() && !win.isVisible()) win.show();
+  };
+  win.once("ready-to-show", reveal);
+  win.webContents.once("did-finish-load", reveal);
+  setTimeout(reveal, 4000);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://")) void shell.openExternal(url);
     return { action: "deny" };
@@ -470,7 +477,8 @@ async function openDiscFile(path: string) {
 if (!headless) {
   if (!app.requestSingleInstanceLock()) app.quit();
   app.on("second-instance", (_e, argv) => {
-    if (win) {
+    if (win && !win.isDestroyed()) {
+      if (!win.isVisible()) win.show();
       if (win.isMinimized()) win.restore();
       win.focus();
     }
